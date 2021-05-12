@@ -28,18 +28,16 @@ func TestName(t *testing.T) {
 }
 
 func TestName1(t *testing.T) {
-
 	tmpFile, err := os.CreateTemp("", "output")
+	defer os.Remove(tmpFile.Name())
+
 	assert.NoError(t, err)
 
 	err = Builder().
-		Join("ls", "-l").
-		WithOutputForks(tmpFile).
+		Join("ls", "-l").WithOutputForks(tmpFile).
 		Join("grep", "README").
 		Join("wc", "-l").
-		Finalize().
-		WithOutput(os.Stdout).
-		Run()
+		Finalize().WithOutput(os.Stdout).Run()
 
 	assert.NoError(t, err)
 
