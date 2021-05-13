@@ -17,7 +17,7 @@ type ChainBuilder interface {
 type FirstCommandBuilder interface {
 	CommandBuilder
 
-	WithInput(r io.Reader) ChainBuilder
+	WithInput(sources ...io.Reader) ChainBuilder
 }
 
 type CommandBuilder interface {

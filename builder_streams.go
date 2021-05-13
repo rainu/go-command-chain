@@ -115,6 +115,10 @@ func (c *chain) combineStream(sources ...io.Reader) (*os.File, error) {
 	}
 
 	cmdIndex := len(c.cmdDescriptors) - 1
+	if cmdIndex < 0 {
+		cmdIndex = 0
+	}
+
 	streamErrors := MultipleErrors{
 		errors: make([]error, len(sources)),
 	}

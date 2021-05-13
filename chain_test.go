@@ -49,6 +49,15 @@ func TestSimple_WithInput(t *testing.T) {
 	runAndCompare(t, toTest, "1\n")
 }
 
+func TestSimple_WithMultiInput(t *testing.T) {
+	toTest := Builder().
+		WithInput(strings.NewReader("TEST\nOUTPUT"), strings.NewReader("TEST\n")).
+		Join("grep", "TEST").
+		Join("wc", "-l")
+
+	runAndCompare(t, toTest, "2\n")
+}
+
 func TestCombined(t *testing.T) {
 	output := &bytes.Buffer{}
 
