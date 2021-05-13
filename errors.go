@@ -1,4 +1,4 @@
-package go_command_chain
+package command_chain
 
 import (
 	"fmt"

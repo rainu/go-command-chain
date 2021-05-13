@@ -1,4 +1,4 @@
-package go_command_chain
+package command_chain
 
 import (
 	"errors"
@@ -92,11 +92,13 @@ func (c *chain) forkStream(src io.ReadCloser, target io.Writer) (io.Reader, erro
 				 +---------+
 	*/
 
+	c.streamRoutinesWg.Add(1)
 	go func(cmdIndex int, src io.Reader) {
 		//we have to make sure, the pipe will be closed after the prevCommand
 		//have closed their output stream - otherwise this will cause a never
 		//ending wait for finishing the command execution!
 		defer pipeWriter.Close()
+		defer c.streamRoutinesWg.Done()
 
 		//the cmdOut must be written into both writer: outFork and pipeWriter.
 		//input from pipeWriter will redirected to pipeReader (the input for
@@ -136,11 +138,13 @@ func (c *chain) combineStream(sources ...io.Reader) (*os.File, error) {
 		}(i, src)
 	}
 
+	c.streamRoutinesWg.Add(1)
 	go func() {
 		//we have to make sure that the pipe will be closed after all source streams
 		//are read. otherwise this will cause a never ending wait for finishing the command execution!
 		defer pipeWriter.Close()
 		defer c.streamErrors.setError(cmdIndex, streamErrors)
+		defer c.streamRoutinesWg.Done()
 
 		//wait until all streams are read
 		wg.Wait()

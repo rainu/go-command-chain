@@ -174,6 +174,5 @@ func runAndCompare(t *testing.T, toTest CommandBuilder, expected string) {
 
 	err := toTest.Finalize().WithOutput(output).Run()
 	assert.NoError(t, err)
-
 	assert.Equal(t, expected, output.String())
 }
