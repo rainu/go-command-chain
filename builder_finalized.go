@@ -5,13 +5,23 @@ import (
 	"io"
 )
 
-func (c *chain) WithOutput(w io.Writer) FinalizedBuilder {
-	c.cmdDescriptors[len(c.cmdDescriptors)-1].command.Stdout = w
+func (c *chain) WithOutput(targets ...io.Writer) FinalizedBuilder {
+	if len(targets) == 1 {
+		c.cmdDescriptors[len(c.cmdDescriptors)-1].command.Stdout = targets[0]
+	} else if len(targets) > 1 {
+		c.cmdDescriptors[len(c.cmdDescriptors)-1].command.Stdout = io.MultiWriter(targets...)
+	}
+
 	return c
 }
 
-func (c *chain) WithError(w io.Writer) FinalizedBuilder {
-	c.cmdDescriptors[len(c.cmdDescriptors)-1].command.Stderr = w
+func (c *chain) WithError(targets ...io.Writer) FinalizedBuilder {
+	if len(targets) == 1 {
+		c.cmdDescriptors[len(c.cmdDescriptors)-1].command.Stderr = targets[0]
+	} else if len(targets) > 1 {
+		c.cmdDescriptors[len(c.cmdDescriptors)-1].command.Stderr = io.MultiWriter(targets...)
+	}
+
 	return c
 }
 

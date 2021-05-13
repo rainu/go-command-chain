@@ -27,6 +27,9 @@ type cmdDescriptor struct {
 	errFork io.Writer
 }
 
+// Builder creates a new command chain builder. This build flow will configure
+// the commands more or less instantaneously. If any error occurs while building
+// the chain you will receive them when you finally call Run of this chain.
 func Builder() FirstCommandBuilder {
 	return &chain{
 		buildErrors:      buildErrors(),

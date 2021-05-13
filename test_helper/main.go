@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+// This is a helper application which can made some stdout and stderr outputs.
+// It will be used in the chain_test.go and is not part of the library. It exists
+// only for test purposes.
+
 func main() {
 	toErr := flag.String("e", "", "write this value to stderr")
 	toOut := flag.String("o", "", "write this value to stdout")

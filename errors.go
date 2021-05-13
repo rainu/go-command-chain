@@ -5,16 +5,21 @@ import (
 	"strings"
 )
 
+// MultipleErrors fusions multiple errors into one error. All underlying errors can be accessed.
+// Normally the errors are saved by commands sequence. So if the first command in the chain occurs an
+// error, this error will be placed at first in the error list.
 type MultipleErrors struct {
 	errorMessage string
 	errors       []error
 	hasError     bool
 }
 
+// Errors returns the underlying errors.
 func (e MultipleErrors) Errors() []error {
 	return e.errors
 }
 
+// Error fusions all error messages of the underlying errors and return them.
 func (e MultipleErrors) Error() string {
 	sb := strings.Builder{}
 
