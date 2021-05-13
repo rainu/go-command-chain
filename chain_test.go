@@ -29,6 +29,17 @@ func TestSimple(t *testing.T) {
 	runAndCompare(t, toTest, "1\n")
 }
 
+func TestSimple_stderr(t *testing.T) {
+	output := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").
+		Finalize().WithError(output).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "ERROR\n", output.String())
+}
+
 func TestSimple_WithInput(t *testing.T) {
 	toTest := Builder().
 		WithInput(strings.NewReader("TEST\nOUTPUT")).
@@ -48,7 +59,7 @@ func TestCombined(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.NotContains(t, output.String(), "OUT\nOUT\nOUT\nOUT\nOUT\nOUT\nOUT", "It seams that the streams will not processed parallel!")
+	assert.Contains(t, output.String(), "OUT\nERR\nOUT\n", "It seams that the streams will not processed parallel!")
 }
 
 func TestWithContext(t *testing.T) {
@@ -155,6 +166,16 @@ func TestErrorFork_multiple(t *testing.T) {
 	runAndCompare(t, toTest, "1\n")
 
 	assert.Equal(t, output1.String(), output2.String(), "The error seams not to be forked to both forks!")
+}
+
+func TestInputInjection(t *testing.T) {
+	toTest := Builder().
+		Join(testHelper, "-o", "TEST").
+		Join("grep", "TEST").
+		WithInjections(strings.NewReader("TEST\n")).
+		Join("wc", "-l")
+
+	runAndCompare(t, toTest, "2\n")
 }
 
 func TestInvalidStreamLink(t *testing.T) {

@@ -27,6 +27,7 @@ type CommandBuilder interface {
 	BlockingOutput() CommandBuilder
 	WithOutputForks(targets ...io.Writer) CommandBuilder
 	WithErrorForks(targets ...io.Writer) CommandBuilder
+	WithInjections(sources ...io.Reader) CommandBuilder
 }
 
 type FinalizedBuilder interface {

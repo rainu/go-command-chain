@@ -30,3 +30,23 @@ func (c *chain) WithErrorForks(targets ...io.Writer) CommandBuilder {
 	}
 	return c
 }
+
+func (c *chain) WithInjections(sources ...io.Reader) CommandBuilder {
+	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
+
+	if len(sources) > 0 {
+		combineSrc := make([]io.Reader, len(sources)+1)
+		combineSrc[0] = cmdDesc.command.Stdin
+		for i, source := range sources {
+			combineSrc[i+1] = source
+		}
+
+		var err error
+		cmdDesc.command.Stdin, err = c.combineStream(combineSrc...)
+		if err != nil {
+			c.streamErrors.setError(len(c.cmdDescriptors)-1, err)
+		}
+	}
+
+	return c
+}

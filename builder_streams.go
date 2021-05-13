@@ -40,17 +40,15 @@ func (c *chain) linkStreams(cmd *exec.Cmd) {
 	if prevCmdDesc.outToIn && !prevCmdDesc.errToIn {
 		if prevCmdDesc.outFork == nil {
 			cmd.Stdin = prevOut
-			return
+		} else {
+			cmd.Stdin, err = c.forkStream(prevOut, prevCmdDesc.outFork)
 		}
-
-		cmd.Stdin, err = c.forkStream(prevOut, prevCmdDesc.outFork)
 	} else if !prevCmdDesc.outToIn && prevCmdDesc.errToIn {
 		if prevCmdDesc.errFork == nil {
 			cmd.Stdin = prevErr
-			return
+		} else {
+			cmd.Stdin, err = c.forkStream(prevErr, prevCmdDesc.errFork)
 		}
-
-		cmd.Stdin, err = c.forkStream(prevErr, prevCmdDesc.errFork)
 	} else if prevCmdDesc.outToIn && prevCmdDesc.errToIn {
 		var outR io.Reader = prevOut
 		var errR io.Reader = prevErr
