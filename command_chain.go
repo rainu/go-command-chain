@@ -8,13 +8,17 @@ import (
 
 type chain struct {
 	cmdDescriptors []cmdDescriptor
-	buildErrors    BuildErrors
+	input          io.Reader
+	buildErrors    MultipleErrors
+	streamErrors   MultipleErrors
 }
 
 type cmdDescriptor struct {
-	command  *exec.Cmd
-	outForks []io.Writer
-	errForks []io.Writer
+	command *exec.Cmd
+	outToIn bool
+	errToIn bool
+	outFork io.Writer
+	errFork io.Writer
 }
 
 type ChainBuilder interface {
@@ -27,6 +31,8 @@ type ChainBuilder interface {
 type CommandBuilder interface {
 	ChainBuilder
 
+	ForwardError() CommandBuilder
+	BlockingOutput() CommandBuilder
 	WithOutputForks(targets ...io.Writer) CommandBuilder
 	WithErrorForks(targets ...io.Writer) CommandBuilder
 }
@@ -45,7 +51,10 @@ type FinalizedBuilder interface {
 }
 
 func Builder() FirstCommandBuilder {
-	return &chain{}
+	return &chain{
+		buildErrors:  buildErrors(),
+		streamErrors: streamErrors(),
+	}
 }
 
 func (c *chain) JoinCmd(cmd *exec.Cmd) CommandBuilder {
@@ -55,15 +64,14 @@ func (c *chain) JoinCmd(cmd *exec.Cmd) CommandBuilder {
 
 	c.cmdDescriptors = append(c.cmdDescriptors, cmdDescriptor{
 		command: cmd,
+		outToIn: true,
 	})
+	c.streamErrors.addError(nil)
 
 	if len(c.cmdDescriptors) > 1 {
-		var err error
-
-		//link this command's input with the previous command's output (cmd1 -> cmd2)
-		cmd.Stdin, err = c.cmdDescriptors[len(c.cmdDescriptors)-2].command.StdoutPipe()
-		c.buildErrors.addError(err)
+		c.linkStreams(cmd)
 	}
+
 	return c
 }
 
@@ -71,18 +79,37 @@ func (c *chain) Join(name string, args ...string) CommandBuilder {
 	return c.JoinCmd(exec.Command(name, args...))
 }
 
+func (c *chain) ForwardError() CommandBuilder {
+	c.cmdDescriptors[len(c.cmdDescriptors)-1].errToIn = true
+	return c
+}
+
+func (c *chain) BlockingOutput() CommandBuilder {
+	c.cmdDescriptors[len(c.cmdDescriptors)-1].outToIn = false
+	return c
+}
+
 func (c *chain) WithOutputForks(targets ...io.Writer) CommandBuilder {
-	c.cmdDescriptors[len(c.cmdDescriptors)-1].outForks = targets
+	if len(targets) > 1 {
+		c.cmdDescriptors[len(c.cmdDescriptors)-1].outFork = io.MultiWriter(targets...)
+	} else if len(targets) == 1 {
+		c.cmdDescriptors[len(c.cmdDescriptors)-1].outFork = targets[0]
+	}
+
 	return c
 }
 
 func (c *chain) WithErrorForks(targets ...io.Writer) CommandBuilder {
-	c.cmdDescriptors[len(c.cmdDescriptors)-1].errForks = targets
+	if len(targets) > 1 {
+		c.cmdDescriptors[len(c.cmdDescriptors)-1].errFork = io.MultiWriter(targets...)
+	} else if len(targets) == 1 {
+		c.cmdDescriptors[len(c.cmdDescriptors)-1].errFork = targets[0]
+	}
 	return c
 }
 
 func (c *chain) WithInput(r io.Reader) ChainBuilder {
-	c.cmdDescriptors[0].command.Stdin = r
+	c.input = r
 	return c
 }
 
@@ -97,6 +124,9 @@ func (c *chain) WithError(w io.Writer) FinalizedBuilder {
 }
 
 func (c *chain) Finalize() FinalizedBuilder {
+	if len(c.cmdDescriptors) > 0 {
+		c.cmdDescriptors[0].command.Stdin = c.input
+	}
 	return c
 }
 
@@ -113,13 +143,23 @@ func (c *chain) Run() error {
 		}
 	}
 
-	runErrors := RunErrors{}
+	runErrors := runErrors()
 	for _, cmdDescriptor := range c.cmdDescriptors {
 		runErrors.addError(cmdDescriptor.command.Wait())
 	}
 
-	if runErrors.hasError {
+	switch {
+	case runErrors.hasError && c.streamErrors.hasError:
+		return MultipleErrors{
+			errorMessage: "run and stream errors occurred",
+			errors:       []error{runErrors, c.streamErrors},
+			hasError:     true,
+		}
+	case runErrors.hasError:
 		return runErrors
+	case c.streamErrors.hasError:
+		return c.streamErrors
+	default:
+		return nil
 	}
-	return nil
 }

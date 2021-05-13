@@ -5,58 +5,72 @@ import (
 	"strings"
 )
 
-type BuildErrors struct {
-	errors   []error
-	hasError bool
+type MultipleErrors struct {
+	errorMessage string
+	errors       []error
+	hasError     bool
 }
 
-func (e BuildErrors) Errors() []error {
+func (e MultipleErrors) Errors() []error {
 	return e.errors
 }
 
-func (e BuildErrors) Error() string {
-	return errorString("one or more chain build errors occurred", e.errors)
-}
-
-func (e BuildErrors) addError(err error) {
-	e.errors = append(e.errors, err)
-	if err != nil {
-		e.hasError = true
-	}
-}
-
-type RunErrors struct {
-	errors   []error
-	hasError bool
-}
-
-func (e RunErrors) Errors() []error {
-	return e.errors
-}
-
-func (e RunErrors) Error() string {
-	return errorString("one ore more command has returned an error", e.errors)
-}
-
-func (e RunErrors) addError(err error) {
-	e.errors = append(e.errors, err)
-	if err != nil {
-		e.hasError = true
-	}
-}
-
-func errorString(msg string, errors []error) string {
+func (e MultipleErrors) Error() string {
 	sb := strings.Builder{}
 
-	sb.WriteString(msg)
+	sb.WriteString(e.errorMessage)
 	sb.WriteString(": [")
-	for i, err := range errors {
-		sb.WriteString(fmt.Sprintf("%d - %s", i, err.Error()))
-		if i+1 != len(errors) {
-			sb.WriteString(", ")
+	for i, err := range e.errors {
+		sb.WriteString(fmt.Sprintf("%d - ", i))
+		if err != nil {
+			sb.WriteString(err.Error())
+		}
+
+		if i+1 != len(e.errors) {
+			sb.WriteString("; ")
 		}
 	}
 	sb.WriteString("]")
 
 	return sb.String()
+}
+
+func (e *MultipleErrors) addError(err error) {
+	e.errors = append(e.errors, err)
+	if err != nil {
+		if mError, ok := err.(MultipleErrors); ok {
+			e.hasError = mError.hasError
+		} else {
+			e.hasError = true
+		}
+	}
+}
+
+func (e *MultipleErrors) setError(i int, err error) {
+	e.errors[i] = err
+	if err != nil {
+		if mError, ok := err.(MultipleErrors); ok {
+			e.hasError = mError.hasError
+		} else {
+			e.hasError = true
+		}
+	}
+}
+
+func runErrors() MultipleErrors {
+	return MultipleErrors{
+		errorMessage: "one or more command has returned an error",
+	}
+}
+
+func buildErrors() MultipleErrors {
+	return MultipleErrors{
+		errorMessage: "one or more chain build errors occurred",
+	}
+}
+
+func streamErrors() MultipleErrors {
+	return MultipleErrors{
+		errorMessage: "one or more command stream copies failed",
+	}
 }
