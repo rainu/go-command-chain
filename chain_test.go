@@ -103,7 +103,7 @@ func TestSimple_ErrorForked(t *testing.T) {
 
 func TestStdErr_OnlyError(t *testing.T) {
 	toTest := Builder().
-		Join(testHelper, "-e", "TEST").BlockingOutput().ForwardError().
+		Join(testHelper, "-e", "TEST").DiscardStdOut().ForwardError().
 		Join("grep", "TEST").
 		Join("wc", "-l")
 
@@ -114,7 +114,7 @@ func TestStdErr_OnlyErrorButOutForked(t *testing.T) {
 	output := &bytes.Buffer{}
 
 	toTest := Builder().
-		Join(testHelper, "-e", "TEST", "-o", "TEST_OUT").BlockingOutput().WithOutputForks(output).ForwardError().
+		Join(testHelper, "-e", "TEST", "-o", "TEST_OUT").DiscardStdOut().WithOutputForks(output).ForwardError().
 		Join("grep", "TEST").
 		Join("wc", "-l")
 
@@ -154,7 +154,7 @@ func TestErrorFork_single(t *testing.T) {
 	output := &bytes.Buffer{}
 
 	toTest := Builder().
-		Join(testHelper, "-e", "TEST").BlockingOutput().ForwardError().WithErrorForks(output).
+		Join(testHelper, "-e", "TEST").DiscardStdOut().ForwardError().WithErrorForks(output).
 		Join("grep", "TEST").
 		Join("wc", "-l")
 
@@ -168,7 +168,7 @@ func TestErrorFork_multiple(t *testing.T) {
 	output2 := &bytes.Buffer{}
 
 	toTest := Builder().
-		Join(testHelper, "-e", "TEST").BlockingOutput().ForwardError().WithErrorForks(output1, output2).
+		Join(testHelper, "-e", "TEST").DiscardStdOut().ForwardError().WithErrorForks(output1, output2).
 		Join("grep", "TEST").
 		Join("wc", "-l")
 
@@ -189,7 +189,7 @@ func TestInputInjection(t *testing.T) {
 
 func TestInvalidStreamLink(t *testing.T) {
 	err := Builder().
-		Join("ls", "-l").BlockingOutput().
+		Join("ls", "-l").DiscardStdOut().
 		Join("grep", "TEST").
 		Join("wc", "-l").
 		Finalize().Run()

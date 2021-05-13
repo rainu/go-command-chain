@@ -7,7 +7,7 @@ func (c *chain) ForwardError() CommandBuilder {
 	return c
 }
 
-func (c *chain) BlockingOutput() CommandBuilder {
+func (c *chain) DiscardStdOut() CommandBuilder {
 	c.cmdDescriptors[len(c.cmdDescriptors)-1].outToIn = false
 	return c
 }
