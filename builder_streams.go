@@ -109,14 +109,14 @@ func (c *chain) forkStream(src io.ReadCloser, target io.Writer) (io.Reader, erro
 }
 
 func (c *chain) combineStream(sources ...io.Reader) (*os.File, error) {
+	cmdIndex := len(c.cmdDescriptors) - 1
+	return c.combineStreamForCommand(cmdIndex, sources...)
+}
+
+func (c *chain) combineStreamForCommand(cmdIndex int, sources ...io.Reader) (*os.File, error) {
 	pipeReader, pipeWriter, err := os.Pipe()
 	if err != nil {
 		return nil, err
-	}
-
-	cmdIndex := len(c.cmdDescriptors) - 1
-	if cmdIndex < 0 {
-		cmdIndex = 0
 	}
 
 	streamErrors := MultipleErrors{

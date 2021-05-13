@@ -9,12 +9,9 @@ import (
 
 type chain struct {
 	cmdDescriptors []cmdDescriptor
-
-	input    io.Reader
-	inputErr error
-
-	buildErrors  MultipleErrors
-	streamErrors MultipleErrors
+	inputs         []io.Reader
+	buildErrors    MultipleErrors
+	streamErrors   MultipleErrors
 
 	streamRoutinesWg sync.WaitGroup
 }
@@ -39,12 +36,7 @@ func Builder() FirstCommandBuilder {
 }
 
 func (c *chain) WithInput(sources ...io.Reader) ChainBuilder {
-	if len(sources) == 1 {
-		c.input = sources[0]
-	} else if len(sources) > 1 {
-		c.input, c.inputErr = c.combineStream(sources...)
-	}
-
+	c.inputs = sources
 	return c
 }
 
@@ -76,9 +68,15 @@ func (c *chain) JoinWithContext(ctx context.Context, name string, args ...string
 
 func (c *chain) Finalize() FinalizedBuilder {
 	if len(c.cmdDescriptors) > 0 {
-		c.cmdDescriptors[0].command.Stdin = c.input
-		if c.streamErrors.Errors()[0] == nil {
-			c.streamErrors.setError(0, c.inputErr)
+
+		if len(c.inputs) == 1 {
+			c.cmdDescriptors[0].command.Stdin = c.inputs[0]
+		} else if len(c.inputs) > 1 {
+			var err error
+			c.cmdDescriptors[0].command.Stdin, err = c.combineStreamForCommand(0, c.inputs...)
+			if c.streamErrors.Errors()[0] == nil {
+				c.streamErrors.setError(0, err)
+			}
 		}
 	}
 	return c
