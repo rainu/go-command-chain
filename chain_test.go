@@ -40,6 +40,30 @@ func TestSimple_stderr(t *testing.T) {
 	assert.Equal(t, "ERROR\n", output.String())
 }
 
+func TestSimple_multi_stdout(t *testing.T) {
+	output1 := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").
+		Finalize().WithOutput(output1, output2).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, output1.String(), output2.String())
+}
+
+func TestSimple_multi_stderr(t *testing.T) {
+	output1 := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").
+		Finalize().WithError(output1, output2).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, output1.String(), output2.String())
+}
+
 func TestSimple_WithInput(t *testing.T) {
 	toTest := Builder().
 		WithInput(strings.NewReader("TEST\nOUTPUT")).
