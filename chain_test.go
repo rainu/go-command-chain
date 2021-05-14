@@ -1,4 +1,4 @@
-package command_chain
+package cmdchain
 
 import (
 	"bytes"
