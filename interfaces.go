@@ -37,7 +37,7 @@ type ChainBuilder interface {
 // FirstCommandBuilder contains methods for building the chain. Especially it contains configuration which can be
 // made only for the first command in the chain.
 type FirstCommandBuilder interface {
-	CommandBuilder
+	ChainBuilder
 
 	// WithInput configures the input stream(s) for the first command in the chain. If multiple streams are
 	// configured, this streams will read in parallel (not sequential!). So be aware of concurrency issues.
@@ -58,7 +58,8 @@ type CommandBuilder interface {
 
 	// DiscardStdOut will configure the previously joined command to drop all its stdout output. So the stdout does NOT
 	// redirect to the next command's stdin. If WithOutputForks is also used, the output of the previously joined
-	// command will be redirected to this fork(s).
+	// command will be redirected to this fork(s). It will cause an invalid stream configuration error if the stderr is
+	// also discarded (which is the default case)! So it should be used in combination of ForwardError.
 	DiscardStdOut() CommandBuilder
 
 	// WithOutputForks will configure the previously joined command to redirect their stdout output to the configured
