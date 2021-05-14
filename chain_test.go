@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -240,6 +241,53 @@ func TestInvalidStreamLink(t *testing.T) {
 	assert.Error(t, err)
 	mError := err.(MultipleErrors)
 	assert.Equal(t, "invalid stream configuration", mError.Errors()[0].Error())
+}
+
+func TestBrokenStream(t *testing.T) {
+	out, _ := os.CreateTemp("", ".txt")
+	defer os.Remove(out.Name())
+
+	//close the file so the stream can not be written -> this should cause a stream error!
+	out.Close()
+
+	err := Builder().
+		Join("ls", "-l").WithOutputForks(out).
+		Join("grep", "README").
+		Join("wc", "-l").
+		Finalize().Run()
+
+	assert.Error(t, err)
+	mError := err.(MultipleErrors)
+	assert.Contains(t, mError.Errors()[1].Error(), "file already closed")
+}
+
+func TestInvalidCommand(t *testing.T) {
+	err := Builder().
+		Join("ls", "-l").
+		Join("invalidApplication").
+		Finalize().Run()
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to start command")
+}
+
+func TestBrokenStreamAndRunError(t *testing.T) {
+	out, _ := os.CreateTemp("", ".txt")
+	defer os.Remove(out.Name())
+
+	//close the file so the stream can not be written -> this should cause a stream error!
+	out.Close()
+
+	err := Builder().
+		Join("ls", "-l").WithOutputForks(out).
+		Join("grep", "aslnaslkdnan").
+		Finalize().Run()
+
+	assert.Error(t, err)
+	mError := err.(MultipleErrors)
+	assert.Equal(t, 2, len(mError.Errors()))
+	assert.Contains(t, mError.Errors()[0].Error(), "one or more command has returned an error")
+	assert.Contains(t, mError.Errors()[1].Error(), "one or more command stream copies failed")
 }
 
 func runAndCompare(t *testing.T, toTest CommandBuilder, expected string) {
