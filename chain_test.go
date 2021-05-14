@@ -95,6 +95,25 @@ func TestCombined(t *testing.T) {
 	assert.Contains(t, output.String(), "OUT\nERR\nOUT\n", "It seams that the streams will not processed parallel!")
 }
 
+func TestCombined_forked(t *testing.T) {
+	output := &bytes.Buffer{}
+	outFork := &bytes.Buffer{}
+	errFork := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-to", "100ms", "-te", "100ms", "-ti", "1ms").ForwardError().WithOutputForks(outFork).WithErrorForks(errFork).
+		Join("grep", `OUT\|ERR`).
+		Finalize().WithOutput(output).Run()
+
+	assert.NoError(t, err)
+
+	assert.Contains(t, output.String(), "OUT\nERR\nOUT\n", "It seams that the streams will not processed parallel!")
+	assert.Contains(t, outFork.String(), "OUT\nOUT\n")
+	assert.NotContains(t, outFork.String(), "ERR\n")
+	assert.Contains(t, errFork.String(), "ERR\nERR\n")
+	assert.NotContains(t, errFork.String(), "OUT\n")
+}
+
 func TestWithContext(t *testing.T) {
 	output := &bytes.Buffer{}
 
