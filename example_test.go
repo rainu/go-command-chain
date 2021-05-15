@@ -27,7 +27,7 @@ func ExampleBuilder() {
 	println(output.String())
 }
 
-func ExampleChainBuilder_Join() {
+func ExampleBuilder_join() {
 	//it's the same as in shell: ls -l | grep README
 	err := Builder().
 		Join("ls", "-l").
@@ -39,7 +39,7 @@ func ExampleChainBuilder_Join() {
 	}
 }
 
-func ExampleChainBuilder_Finalize() {
+func ExampleBuilder_finalize() {
 	//it's the same as in shell: ls -l | grep README
 	err := Builder().
 		Join("ls", "-l").
@@ -51,7 +51,7 @@ func ExampleChainBuilder_Finalize() {
 	}
 }
 
-func ExampleChainBuilder_JoinCmd() {
+func ExampleBuilder_joinCmd() {
 	//it's the same as in shell: ls -l | grep README
 	grepCmd := exec.Command("grep", "README")
 
@@ -67,7 +67,7 @@ func ExampleChainBuilder_JoinCmd() {
 	}
 }
 
-func ExampleChainBuilder_JoinWithContext() {
+func ExampleBuilder_joinWithContext() {
 	//the "ls" command will be killed after 1 second
 	ctx, cancelFn := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancelFn()
@@ -83,7 +83,7 @@ func ExampleChainBuilder_JoinWithContext() {
 	}
 }
 
-func ExampleFirstCommandBuilder_WithInput() {
+func ExampleBuilder_withInput() {
 	inputContent := strings.NewReader("test\n")
 
 	//it's the same as in shell: echo "test" | grep test
@@ -97,7 +97,7 @@ func ExampleFirstCommandBuilder_WithInput() {
 	}
 }
 
-func ExampleCommandBuilder_ForwardError() {
+func ExampleBuilder_forwardError() {
 	//it's the same as in shell: echoErr "test" |& grep test
 	err := Builder().
 		Join("echoErr", "test").ForwardError().
@@ -110,7 +110,7 @@ func ExampleCommandBuilder_ForwardError() {
 	}
 }
 
-func ExampleCommandBuilder_DiscardStdOut() {
+func ExampleBuilder_discardStdOut() {
 	//this will drop the stdout from echo .. so grep will receive no input
 	//Attention: it must be used in combination with ForwardError - otherwise
 	//it will cause a invalid stream configuration error!
@@ -125,7 +125,7 @@ func ExampleCommandBuilder_DiscardStdOut() {
 	}
 }
 
-func ExampleCommandBuilder_WithOutputForks() {
+func ExampleBuilder_withOutputForks() {
 	//it's the same as in shell: echo "test" | tee <fork> | grep test | wc -l
 	outputFork := &bytes.Buffer{}
 
@@ -141,7 +141,7 @@ func ExampleCommandBuilder_WithOutputForks() {
 	println(outputFork.String())
 }
 
-func ExampleCommandBuilder_WithErrorForks() {
+func ExampleBuilder_withErrorForks() {
 	//it's the same as in shell: echoErr "test" |& tee <fork> | grep test | wc -l
 	errorFork := &bytes.Buffer{}
 
@@ -157,7 +157,7 @@ func ExampleCommandBuilder_WithErrorForks() {
 	println(errorFork.String())
 }
 
-func ExampleCommandBuilder_WithInjections() {
+func ExampleBuilder_withInjections() {
 	//it's the same as in shell: echo -e "test\ntest" | grep test | wc -l
 	inputContent := strings.NewReader("test\n")
 
@@ -172,7 +172,7 @@ func ExampleCommandBuilder_WithInjections() {
 	}
 }
 
-func ExampleFinalizedBuilder_WithOutput() {
+func ExampleBuilder_withOutput() {
 	//it's the same as in shell: echo "test" | grep test > /tmp/output
 
 	target, err := os.OpenFile("/tmp/output", os.O_RDWR|os.O_CREATE, 0755)
@@ -190,7 +190,7 @@ func ExampleFinalizedBuilder_WithOutput() {
 	}
 }
 
-func ExampleFinalizedBuilder_WithError() {
+func ExampleBuilder_withError() {
 	//it's the same as in shell: echoErr "test" 2> /tmp/error
 
 	target, err := os.OpenFile("/tmp/error", os.O_RDWR|os.O_CREATE, 0755)
@@ -207,7 +207,7 @@ func ExampleFinalizedBuilder_WithError() {
 	}
 }
 
-func ExampleFinalizedBuilder_Run() {
+func ExampleBuilder_run() {
 	output := &bytes.Buffer{}
 
 	//it's the same as in shell: ls -l | grep README | wc -l
