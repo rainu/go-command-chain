@@ -1,8 +1,9 @@
-package cmdchain
+package cmdchain_test
 
 import (
 	"bytes"
 	"context"
+	"github.com/rainu/go-command-chain"
 	"os"
 	"os/exec"
 	"strings"
@@ -13,7 +14,7 @@ func ExampleBuilder() {
 	output := &bytes.Buffer{}
 
 	//it's the same as in shell: ls -l | grep README | wc -l
-	err := Builder().
+	err := cmdchain.Builder().
 		Join("ls", "-l").
 		Join("grep", "README").
 		Join("wc", "-l").
@@ -29,7 +30,7 @@ func ExampleBuilder() {
 
 func ExampleBuilder_join() {
 	//it's the same as in shell: ls -l | grep README
-	err := Builder().
+	err := cmdchain.Builder().
 		Join("ls", "-l").
 		Join("grep", "README").
 		Finalize().Run()
@@ -41,7 +42,7 @@ func ExampleBuilder_join() {
 
 func ExampleBuilder_finalize() {
 	//it's the same as in shell: ls -l | grep README
-	err := Builder().
+	err := cmdchain.Builder().
 		Join("ls", "-l").
 		Join("grep", "README").
 		Finalize().Run()
@@ -57,7 +58,7 @@ func ExampleBuilder_joinCmd() {
 
 	//do NOT manipulate the command's streams!
 
-	err := Builder().
+	err := cmdchain.Builder().
 		Join("ls", "-l").
 		JoinCmd(grepCmd).
 		Finalize().Run()
@@ -73,7 +74,7 @@ func ExampleBuilder_joinWithContext() {
 	defer cancelFn()
 
 	//it's the same as in shell: ls -l | grep README
-	err := Builder().
+	err := cmdchain.Builder().
 		JoinWithContext(ctx, "ls", "-l").
 		Join("grep", "README").
 		Finalize().Run()
@@ -87,7 +88,7 @@ func ExampleBuilder_withInput() {
 	inputContent := strings.NewReader("test\n")
 
 	//it's the same as in shell: echo "test" | grep test
-	err := Builder().
+	err := cmdchain.Builder().
 		WithInput(inputContent).
 		Join("grep", "test").
 		Finalize().Run()
@@ -99,7 +100,7 @@ func ExampleBuilder_withInput() {
 
 func ExampleBuilder_forwardError() {
 	//it's the same as in shell: echoErr "test" |& grep test
-	err := Builder().
+	err := cmdchain.Builder().
 		Join("echoErr", "test").ForwardError().
 		Join("grep", "test").
 		Join("wc", "-l").
@@ -114,7 +115,7 @@ func ExampleBuilder_discardStdOut() {
 	//this will drop the stdout from echo .. so grep will receive no input
 	//Attention: it must be used in combination with ForwardError - otherwise
 	//it will cause a invalid stream configuration error!
-	err := Builder().
+	err := cmdchain.Builder().
 		Join("echo", "test").DiscardStdOut().ForwardError().
 		Join("grep", "test").
 		Join("wc", "-l").
@@ -129,7 +130,7 @@ func ExampleBuilder_withOutputForks() {
 	//it's the same as in shell: echo "test" | tee <fork> | grep test | wc -l
 	outputFork := &bytes.Buffer{}
 
-	err := Builder().
+	err := cmdchain.Builder().
 		Join("echo", "test").WithOutputForks(outputFork).
 		Join("grep", "test").
 		Join("wc", "-l").
@@ -145,7 +146,7 @@ func ExampleBuilder_withErrorForks() {
 	//it's the same as in shell: echoErr "test" |& tee <fork> | grep test | wc -l
 	errorFork := &bytes.Buffer{}
 
-	err := Builder().
+	err := cmdchain.Builder().
 		Join("echoErr", "test").ForwardError().WithErrorForks(errorFork).
 		Join("grep", "test").
 		Join("wc", "-l").
@@ -161,7 +162,7 @@ func ExampleBuilder_withInjections() {
 	//it's the same as in shell: echo -e "test\ntest" | grep test | wc -l
 	inputContent := strings.NewReader("test\n")
 
-	err := Builder().
+	err := cmdchain.Builder().
 		Join("echoErr", "test").WithInjections(inputContent).
 		Join("grep", "test").
 		Join("wc", "-l").
@@ -180,7 +181,7 @@ func ExampleBuilder_withOutput() {
 		panic(err)
 	}
 
-	err = Builder().
+	err = cmdchain.Builder().
 		Join("echo", "test").
 		Join("grep", "test").
 		Finalize().WithOutput(target).Run()
@@ -198,7 +199,7 @@ func ExampleBuilder_withError() {
 		panic(err)
 	}
 
-	err = Builder().
+	err = cmdchain.Builder().
 		Join("echoErr", "test").
 		Finalize().WithError(target).Run()
 
@@ -211,7 +212,7 @@ func ExampleBuilder_run() {
 	output := &bytes.Buffer{}
 
 	//it's the same as in shell: ls -l | grep README | wc -l
-	err := Builder().
+	err := cmdchain.Builder().
 		Join("ls", "-l").
 		Join("grep", "README").
 		Join("wc", "-l").
