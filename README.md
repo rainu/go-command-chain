@@ -1,6 +1,7 @@
 [![Go](https://github.com/rainu/go-command-chain/actions/workflows/build.yml/badge.svg)](https://github.com/rainu/go-command-chain/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/rainu/go-command-chain/branch/main/graph/badge.svg)](https://codecov.io/gh/rainu/go-command-chain)
 [![Go Report Card](https://goreportcard.com/badge/github.com/rainu/go-command-chain)](https://goreportcard.com/report/github.com/rainu/go-command-chain)
+[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
 # go-command-chain
 A go library for easy configure and run command chains. Such like pipelining in unix shells.
