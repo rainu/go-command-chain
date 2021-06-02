@@ -31,6 +31,17 @@ func main() {
 
 	wg := sync.WaitGroup{}
 
+	handleOut(tickOut, tickInt, &wg)
+	handleErr(tickErr, tickInt, &wg)
+
+	wg.Wait()
+
+	if exitCode != nil {
+		os.Exit(*exitCode)
+	}
+}
+
+func handleOut(tickOut *time.Duration, tickInt *time.Duration, wg *sync.WaitGroup) {
 	if tickOut != nil && *tickOut != 0 {
 		timer := time.NewTimer(*tickOut)
 		ticker := time.NewTicker(*tickInt)
@@ -50,7 +61,9 @@ func main() {
 			}
 		}()
 	}
+}
 
+func handleErr(tickErr *time.Duration, tickInt *time.Duration, wg *sync.WaitGroup) {
 	if tickErr != nil && *tickErr != 0 {
 		timer := time.NewTimer(*tickErr)
 		ticker := time.NewTicker(*tickInt)
@@ -69,11 +82,5 @@ func main() {
 				}
 			}
 		}()
-	}
-
-	wg.Wait()
-
-	if exitCode != nil {
-		os.Exit(*exitCode)
 	}
 }

@@ -19,22 +19,9 @@ func (c *chain) linkStreams(cmd *exec.Cmd) {
 		c.buildErrors.addError(err)
 	}()
 
-	if prevCmdDesc.outToIn {
-		prevOut, err = prevCmdDesc.command.StdoutPipe()
-		if err != nil {
-			return
-		}
-	} else if prevCmdDesc.outFork != nil {
-		prevCmdDesc.command.Stdout = prevCmdDesc.outFork
-	}
-
-	if prevCmdDesc.errToIn {
-		prevErr, err = prevCmdDesc.command.StderrPipe()
-		if err != nil {
-			return
-		}
-	} else if prevCmdDesc.errFork != nil {
-		prevCmdDesc.command.Stderr = prevCmdDesc.errFork
+	prevOut, prevErr, err = c.linkOutAndErr(&prevCmdDesc)
+	if err != nil {
+		return
 	}
 
 	if prevCmdDesc.outToIn && !prevCmdDesc.errToIn {
@@ -71,6 +58,28 @@ func (c *chain) linkStreams(cmd *exec.Cmd) {
 		//this should never be happen!
 		err = errors.New("invalid stream configuration")
 	}
+}
+
+func (c *chain) linkOutAndErr(prevCmd *cmdDescriptor) (outStream io.ReadCloser, errStream io.ReadCloser, err error) {
+	if prevCmd.outToIn {
+		outStream, err = prevCmd.command.StdoutPipe()
+		if err != nil {
+			return
+		}
+	} else if prevCmd.outFork != nil {
+		prevCmd.command.Stdout = prevCmd.outFork
+	}
+
+	if prevCmd.errToIn {
+		errStream, err = prevCmd.command.StderrPipe()
+		if err != nil {
+			return
+		}
+	} else if prevCmd.errFork != nil {
+		prevCmd.command.Stderr = prevCmd.errFork
+	}
+
+	return
 }
 
 func (c *chain) forkStream(src io.ReadCloser, target io.Writer) (io.Reader, error) {
