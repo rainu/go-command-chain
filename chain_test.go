@@ -231,6 +231,19 @@ func TestInputInjection(t *testing.T) {
 	runAndCompare(t, toTest, "2\n")
 }
 
+func TestInputInjectionWithoutStdin(t *testing.T) {
+	input := strings.NewReader("Hello")
+	output := bytes.NewBuffer([]byte{})
+	err := Builder().
+		Join("cat").WithInjections(input).
+		Finalize().
+		WithOutput(output).
+		Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Hello", output.String())
+}
+
 func TestInvalidStreamLink(t *testing.T) {
 	err := Builder().
 		Join("ls", "-l").DiscardStdOut().
