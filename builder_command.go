@@ -119,3 +119,8 @@ func (c *chain) WithWorkingDirectory(workingDir string) CommandBuilder {
 	cmdDesc.command.Dir = workingDir
 	return c
 }
+
+func (c *chain) WithErrorChecker(errChecker ErrorChecker) CommandBuilder {
+	c.cmdDescriptors[len(c.cmdDescriptors)-1].errorChecker = errChecker
+	return c
+}

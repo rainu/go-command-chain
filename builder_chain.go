@@ -23,6 +23,7 @@ type cmdDescriptor struct {
 	outFork        io.Writer
 	errFork        io.Writer
 	commandApplier []CommandApplier
+	errorChecker   ErrorChecker
 }
 
 // Builder creates a new command chain builder. This build flow will configure

@@ -52,8 +52,25 @@ func (c *chain) Run() error {
 	c.streamRoutinesWg.Wait()
 
 	runErrors := runErrors()
-	for _, cmdDescriptor := range c.cmdDescriptors {
-		runErrors.addError(cmdDescriptor.command.Wait())
+	for cmdIndex, cmdDescriptor := range c.cmdDescriptors {
+		err := cmdDescriptor.command.Wait()
+
+		if err == nil {
+			runErrors.addError(nil)
+		} else {
+			shouldAdd := true
+
+			if cmdDescriptor.errorChecker != nil {
+				// let the corresponding error check decide if the error is "relevant" or not
+				shouldAdd = cmdDescriptor.errorChecker(cmdIndex, cmdDescriptor.command, err)
+			}
+
+			if shouldAdd {
+				runErrors.addError(err)
+			} else {
+				runErrors.addError(nil)
+			}
+		}
 	}
 
 	switch {

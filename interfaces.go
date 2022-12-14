@@ -120,6 +120,12 @@ type CommandBuilder interface {
 	// WithWorkingDirectory will configure the previously joined command to use the specifies the working directory.
 	// Without setting the working directory, the calling process's current directory will be used.
 	WithWorkingDirectory(workingDir string) CommandBuilder
+
+	// WithErrorChecker will configure the previously joined command to use the given error checker. In some cases
+	// the commands will return a non-zero exit code, which will normally cause an error at the FinalizedBuilder.Run().
+	// To avoid that you can use a ErrorChecker to ignore these kind of errors. There exists a set of functions which
+	// create a such ErrorChecker: IgnoreExitCode, IgnoreExitErrors, IgnoreAll
+	WithErrorChecker(ErrorChecker) CommandBuilder
 }
 
 // FinalizedBuilder contains methods for configuration the the finalized chain. At this step the chain can be running.

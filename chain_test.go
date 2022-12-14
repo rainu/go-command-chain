@@ -403,6 +403,15 @@ func TestBrokenStreamAndRunError(t *testing.T) {
 	assert.Contains(t, mError.Errors()[1].Error(), "one or more command stream copies failed")
 }
 
+func TestIgnoreExitCode(t *testing.T) {
+	err := Builder().
+		Join(testHelper, "-o", "test", "-x", "1").WithErrorChecker(IgnoreExitCode(1)).
+		Join("grep", "test").
+		Finalize().Run()
+
+	assert.NoError(t, err)
+}
+
 func runAndCompare(t *testing.T, toTest CommandBuilder, expected string) {
 	output := &bytes.Buffer{}
 
