@@ -101,3 +101,9 @@ func (c *chain) WithAdditionalEnvironment(envMap ...interface{}) CommandBuilder 
 
 	return c.WithEnvironment(envMap...)
 }
+
+func (c *chain) WithWorkingDirectory(workingDir string) CommandBuilder {
+	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
+	cmdDesc.command.Dir = workingDir
+	return c
+}

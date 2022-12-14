@@ -99,6 +99,10 @@ type CommandBuilder interface {
 	// WithAdditionalEnvironmentMap will do almost the same thing as WithEnvironmentMap expecting that the given
 	// values will be joined with the environment variables of the current process.
 	WithAdditionalEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder
+
+	// WithWorkingDirectory will configure the previously joined command to use the specifies the working directory.
+	// Without setting the working directory, the calling process's current directory will be used.
+	WithWorkingDirectory(workingDir string) CommandBuilder
 }
 
 // FinalizedBuilder contains methods for configuration the the finalized chain. At this step the chain can be running.

@@ -6,16 +6,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 	"testing"
 	"time"
 )
 
-const testHelper = "./testHelper"
+var testHelper string
 
 func init() {
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	testHelper = path.Join(wd, "testHelper")
+
 	//build a little go binary which can be executed and process some stdOut/stdErr output
-	err := exec.Command("go", "build", "-ldflags", "-w -s", "-o", testHelper, "./test_helper/main.go").Run()
+	err = exec.Command("go", "build", "-ldflags", "-w -s", "-o", testHelper, "./test_helper/main.go").Run()
 	if err != nil {
 		panic(err)
 	}
@@ -142,6 +150,13 @@ func TestSimple_WithEnvironment_InvalidArguments(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "one or more chain build errors occurred: [0 - invalid count of environment arguments]", err.Error())
+}
+
+func TestSimple_WithWorkingDirectory(t *testing.T) {
+	toTest := Builder().
+		Join(testHelper, "-pwd").WithWorkingDirectory(os.TempDir())
+
+	runAndCompare(t, toTest, os.TempDir()+"\n")
 }
 
 func TestCombined(t *testing.T) {
