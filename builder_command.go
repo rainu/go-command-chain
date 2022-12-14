@@ -1,6 +1,10 @@
 package cmdchain
 
-import "io"
+import (
+	"fmt"
+	"io"
+	"os"
+)
 
 func (c *chain) ForwardError() CommandBuilder {
 	c.cmdDescriptors[len(c.cmdDescriptors)-1].errToIn = true
@@ -56,4 +60,44 @@ func (c *chain) WithInjections(sources ...io.Reader) CommandBuilder {
 	}
 
 	return c
+}
+
+func (c *chain) WithEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder {
+	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
+
+	for key, value := range envMap {
+		cmdDesc.command.Env = append(cmdDesc.command.Env, fmt.Sprintf("%v=%v", key, value))
+	}
+	return c
+}
+
+func (c *chain) WithEnvironment(envMap ...interface{}) CommandBuilder {
+	if len(envMap)%2 != 0 {
+		c.buildErrors.addError(fmt.Errorf("invalid count of environment arguments"))
+		return c
+	}
+	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
+
+	for i := 0; i < len(envMap); i += 2 {
+		cmdDesc.command.Env = append(cmdDesc.command.Env, fmt.Sprintf("%v=%v", envMap[i], envMap[i+1]))
+	}
+	return c
+}
+
+func (c *chain) WithAdditionalEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder {
+	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
+	if len(cmdDesc.command.Env) == 0 {
+		cmdDesc.command.Env = os.Environ()
+	}
+
+	return c.WithEnvironmentMap(envMap)
+}
+
+func (c *chain) WithAdditionalEnvironment(envMap ...interface{}) CommandBuilder {
+	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
+	if len(cmdDesc.command.Env) == 0 {
+		cmdDesc.command.Env = os.Environ()
+	}
+
+	return c.WithEnvironment(envMap...)
 }

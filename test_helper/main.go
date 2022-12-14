@@ -18,6 +18,7 @@ func main() {
 	tickOut := flag.Duration("to", 0, "write one line at out per interval (see -ti) for X time")
 	tickErr := flag.Duration("te", 0, "write one line at err per interval (see -ti) for X time")
 	tickInt := flag.Duration("ti", 1*time.Second, "in which interval should the lines be written")
+	printEnv := flag.Bool("pe", false, "print environment variables to stdout")
 	exitCode := flag.Int("x", 0, "the exit code")
 
 	flag.Parse()
@@ -27,6 +28,12 @@ func main() {
 	}
 	if toOut != nil && *toOut != "" {
 		fmt.Println(*toOut)
+	}
+	if *printEnv {
+		env := os.Environ()
+		for _, curEnv := range env {
+			fmt.Println(curEnv)
+		}
 	}
 
 	wg := sync.WaitGroup{}

@@ -173,6 +173,18 @@ func ExampleBuilder_withInjections() {
 	}
 }
 
+func ExampleBuilder_withAdditionalEnvironment() {
+	//it's the same as in shell: TEST=VALUE TEST2=2 env | grep TEST | wc -l
+	err := cmdchain.Builder().
+		Join("env").WithAdditionalEnvironment("TEST", "VALUE", "TEST2", 2).
+		Join("grep", "TEST").
+		Finalize().Run()
+
+	if err != nil {
+		panic(err)
+	}
+}
+
 func ExampleBuilder_withOutput() {
 	//it's the same as in shell: echo "test" | grep test > /tmp/output
 

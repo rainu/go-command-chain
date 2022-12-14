@@ -83,6 +83,22 @@ type CommandBuilder interface {
 	// and the given sources) will read in parallel (not sequential!). So be aware of concurrency issues.
 	// If this behavior is not wanted, me the io.MultiReader is a better choice.
 	WithInjections(sources ...io.Reader) CommandBuilder
+
+	// WithEnvironment will configure the previously joined command to use the given environment variables. Key-value
+	// pair(s) must be passed as arguments. Where the first represents the key and the second the value of the
+	// environment variable.
+	WithEnvironment(envMap ...interface{}) CommandBuilder
+
+	// WithEnvironmentMap will configure the previously joined command to use the given environment variables.
+	WithEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder
+
+	// WithAdditionalEnvironment will do almost the same thing as WithEnvironment expecting that the given key-value
+	// pairs will be joined with the environment variables of the current process.
+	WithAdditionalEnvironment(envMap ...interface{}) CommandBuilder
+
+	// WithAdditionalEnvironmentMap will do almost the same thing as WithEnvironmentMap expecting that the given
+	// values will be joined with the environment variables of the current process.
+	WithAdditionalEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder
 }
 
 // FinalizedBuilder contains methods for configuration the the finalized chain. At this step the chain can be running.

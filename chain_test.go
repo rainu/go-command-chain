@@ -83,6 +83,67 @@ func TestSimple_WithMultiInput(t *testing.T) {
 	runAndCompare(t, toTest, "2\n")
 }
 
+func TestSimple_WithEnvironment(t *testing.T) {
+	toTest := Builder().
+		Join(testHelper, "-pe").WithEnvironment("TEST", "VALUE", "TEST2", 2)
+
+	runAndCompare(t, toTest, "TEST=VALUE\nTEST2=2\n")
+}
+
+func TestSimple_WithEnvironmentMap(t *testing.T) {
+	toTest := Builder().
+		Join(testHelper, "-pe").WithEnvironmentMap(map[interface{}]interface{}{"TEST": "VALUE", "TEST2": 2})
+
+	runAndCompare(t, toTest, "TEST=VALUE\nTEST2=2\n")
+}
+
+func TestSimple_WithAdditionalEnvironment(t *testing.T) {
+	toTest := Builder().
+		Join(testHelper, "-pe").WithAdditionalEnvironment("TEST", "VALUE", "TEST2", 2).
+		Join("grep", "TEST").
+		Join("sort")
+
+	runAndCompare(t, toTest, "TEST2=2\nTEST=VALUE\n")
+}
+
+func TestSimple_WithAdditionalEnvironmentMap(t *testing.T) {
+	toTest := Builder().
+		Join(testHelper, "-pe").WithAdditionalEnvironmentMap(map[interface{}]interface{}{"TEST": "VALUE", "TEST2": 2}).
+		Join("grep", "TEST").
+		Join("sort")
+
+	runAndCompare(t, toTest, "TEST2=2\nTEST=VALUE\n")
+}
+
+func TestSimple_WithAdditionalEnvironment_butNotProcessEnv(t *testing.T) {
+	cmd := exec.Command(testHelper, "-pe")
+	cmd.Env = []string{"TEST=VALUE"}
+
+	toTest := Builder().
+		JoinCmd(cmd).WithAdditionalEnvironment("TEST2", 2)
+
+	runAndCompare(t, toTest, "TEST=VALUE\nTEST2=2\n")
+}
+
+func TestSimple_WithAdditionalEnvironmentMap_butNotProcessEnv(t *testing.T) {
+	cmd := exec.Command(testHelper, "-pe")
+	cmd.Env = []string{"TEST=VALUE"}
+
+	toTest := Builder().
+		JoinCmd(cmd).WithAdditionalEnvironmentMap(map[interface{}]interface{}{"TEST2": 2})
+
+	runAndCompare(t, toTest, "TEST=VALUE\nTEST2=2\n")
+}
+
+func TestSimple_WithEnvironment_InvalidArguments(t *testing.T) {
+	err := Builder().
+		Join(testHelper, "-pe").WithEnvironment("TEST", "VALUE", "TEST2").
+		Finalize().Run()
+
+	assert.Error(t, err)
+	assert.Equal(t, "one or more chain build errors occurred: [0 - invalid count of environment arguments]", err.Error())
+}
+
 func TestCombined(t *testing.T) {
 	output := &bytes.Buffer{}
 
