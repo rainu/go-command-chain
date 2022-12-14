@@ -45,9 +45,26 @@ type FirstCommandBuilder interface {
 	WithInput(sources ...io.Reader) ChainBuilder
 }
 
+// CommandApplier is a function which will get the command's index and the command's reference
+type CommandApplier func(index int, command *exec.Cmd)
+
 // CommandBuilder contains methods for configuring the previous joined command.
 type CommandBuilder interface {
 	ChainBuilder
+
+	// Apply will call the given CommandApplier with the previously joined command. The CommandApplier can do anything
+	// with the previously joined command. The CommandApplier will be called directly so the command which the applier
+	// will be received has included all changes which made before this function call.
+	// ATTENTION: Be aware of the changes the CommandApplier will make. This can clash with the changes the building
+	// pipeline will make!
+	Apply(CommandApplier) CommandBuilder
+
+	// ApplyBeforeStart will call the given CommandApplier with the previously joined command. The CommandApplier can do
+	// anything with the previously joined command. The CommandApplier will be called before the command will be started
+	// so the command is almost finished (all streams are configured and so on).
+	// ATTENTION: Be aware of the changes the CommandApplier will make. This can clash with the changes the building
+	// pipeline will make!
+	ApplyBeforeStart(CommandApplier) CommandBuilder
 
 	// ForwardError will configure the previously joined command to redirect all its stderr output to the next
 	// command's input. If WithErrorForks is also used, the stderr output of the previously joined command will

@@ -31,7 +31,15 @@ func (c *chain) Run() error {
 	}
 
 	//we have to start all commands (non blocking!)
-	for _, cmdDescriptor := range c.cmdDescriptors {
+	for cmdIndex, cmdDescriptor := range c.cmdDescriptors {
+		for _, applier := range cmdDescriptor.commandApplier {
+			applier(cmdIndex, cmdDescriptor.command)
+		}
+
+		//here we can free the applier (we don't need them anymore)
+		//and such functions have the potential to "lock" some memory
+		cmdDescriptor.commandApplier = nil
+
 		err := cmdDescriptor.command.Start()
 		if err != nil {
 			return fmt.Errorf("failed to start command: %w", err)

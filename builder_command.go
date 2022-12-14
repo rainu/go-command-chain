@@ -6,6 +6,18 @@ import (
 	"os"
 )
 
+func (c *chain) Apply(applier CommandApplier) CommandBuilder {
+	applier(len(c.cmdDescriptors)-1, c.cmdDescriptors[len(c.cmdDescriptors)-1].command)
+	return c
+}
+
+func (c *chain) ApplyBeforeStart(applier CommandApplier) CommandBuilder {
+	i := len(c.cmdDescriptors) - 1
+	c.cmdDescriptors[i].commandApplier = append(c.cmdDescriptors[i].commandApplier, applier)
+
+	return c
+}
+
 func (c *chain) ForwardError() CommandBuilder {
 	c.cmdDescriptors[len(c.cmdDescriptors)-1].errToIn = true
 	return c

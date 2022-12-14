@@ -17,11 +17,12 @@ type chain struct {
 }
 
 type cmdDescriptor struct {
-	command *exec.Cmd
-	outToIn bool
-	errToIn bool
-	outFork io.Writer
-	errFork io.Writer
+	command        *exec.Cmd
+	outToIn        bool
+	errToIn        bool
+	outFork        io.Writer
+	errFork        io.Writer
+	commandApplier []CommandApplier
 }
 
 // Builder creates a new command chain builder. This build flow will configure

@@ -38,6 +38,30 @@ func TestSimple(t *testing.T) {
 	runAndCompare(t, toTest, "1\n")
 }
 
+func TestSimple_apply(t *testing.T) {
+	toTest := Builder().
+		Join(testHelper, "-pwd").Apply(func(_ int, command *exec.Cmd) {
+		command.Dir = os.TempDir()
+	})
+
+	runAndCompare(t, toTest, os.TempDir()+"\n")
+}
+
+func TestCombined_applyBeforeStart(t *testing.T) {
+	outViaBuilder := &bytes.Buffer{}
+	outViaApplier := &bytes.Buffer{}
+
+	Builder().
+		Join("echo", "test").ApplyBeforeStart(func(_ int, cmd *exec.Cmd) {
+		assert.Same(t, outViaBuilder, cmd.Stdout)
+		cmd.Stdout = outViaApplier
+	}).
+		Finalize().WithOutput(outViaBuilder).Run()
+
+	assert.Equal(t, "", outViaBuilder.String())
+	assert.Equal(t, "test\n", outViaApplier.String())
+}
+
 func TestSimple_stderr(t *testing.T) {
 	output := &bytes.Buffer{}
 
