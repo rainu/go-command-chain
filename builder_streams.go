@@ -90,13 +90,13 @@ func (c *chain) forkStream(src io.ReadCloser, target io.Writer) (io.Reader, erro
 	}
 
 	/*
-		+------+          +------+
-		| cmd1 | ---+---> | cmd2 |
-		+------+    |     +------+
-					V
-				 +---------+
-				 | outFork |
-				 +---------+
+	   +------+          +------+
+	   | cmd1 | ---+---> | cmd2 |
+	   +------+    |     +------+
+	               V
+	         +---------+
+	         | outFork |
+	         +---------+
 	*/
 
 	c.streamRoutinesWg.Add(1)
