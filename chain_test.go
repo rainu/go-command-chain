@@ -124,27 +124,28 @@ func TestSimple_WithEnvironment(t *testing.T) {
 
 func TestSimple_WithEnvironmentMap(t *testing.T) {
 	toTest := Builder().
-		Join(testHelper, "-pe").WithEnvironmentMap(map[interface{}]interface{}{"TEST": "VALUE", "TEST2": 2})
+		Join(testHelper, "-pe").WithEnvironmentMap(map[interface{}]interface{}{"GO_COMMAND_CHAIN_TEST": "VALUE", "GO_COMMAND_CHAIN_TEST2": 2}).
+		Join("sort")
 
-	runAndCompare(t, toTest, "TEST=VALUE\nTEST2=2\n")
+	runAndCompare(t, toTest, "GO_COMMAND_CHAIN_TEST2=2\nGO_COMMAND_CHAIN_TEST=VALUE\n")
 }
 
 func TestSimple_WithAdditionalEnvironment(t *testing.T) {
 	toTest := Builder().
-		Join(testHelper, "-pe").WithAdditionalEnvironment("TEST", "VALUE", "TEST2", 2).
-		Join("grep", "TEST").
+		Join(testHelper, "-pe").WithAdditionalEnvironment("GO_COMMAND_CHAIN_TEST", "VALUE", "GO_COMMAND_CHAIN_TEST2", 2).
+		Join("grep", "GO_COMMAND_CHAIN_TEST").
 		Join("sort")
 
-	runAndCompare(t, toTest, "TEST2=2\nTEST=VALUE\n")
+	runAndCompare(t, toTest, "GO_COMMAND_CHAIN_TEST2=2\nGO_COMMAND_CHAIN_TEST=VALUE\n")
 }
 
 func TestSimple_WithAdditionalEnvironmentMap(t *testing.T) {
 	toTest := Builder().
-		Join(testHelper, "-pe").WithAdditionalEnvironmentMap(map[interface{}]interface{}{"TEST": "VALUE", "TEST2": 2}).
-		Join("grep", "TEST").
+		Join(testHelper, "-pe").WithAdditionalEnvironmentMap(map[interface{}]interface{}{"GO_COMMAND_CHAIN_TEST": "VALUE", "GO_COMMAND_CHAIN_TEST2": 2}).
+		Join("grep", "GO_COMMAND_CHAIN_TEST").
 		Join("sort")
 
-	runAndCompare(t, toTest, "TEST2=2\nTEST=VALUE\n")
+	runAndCompare(t, toTest, "GO_COMMAND_CHAIN_TEST2=2\nGO_COMMAND_CHAIN_TEST=VALUE\n")
 }
 
 func TestSimple_WithAdditionalEnvironment_butNotProcessEnv(t *testing.T) {
