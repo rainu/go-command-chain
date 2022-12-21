@@ -39,3 +39,10 @@ func IgnoreAll() ErrorChecker {
 		return false
 	}
 }
+
+// IgnoreNothing will return an ErrorChecker. This will ignore no error.
+func IgnoreNothing() ErrorChecker {
+	return func(_ int, _ *exec.Cmd, _ error) bool {
+		return true
+	}
+}

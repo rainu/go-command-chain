@@ -25,6 +25,11 @@ func (c *chain) WithError(targets ...io.Writer) FinalizedBuilder {
 	return c
 }
 
+func (c *chain) WithGlobalErrorChecker(errorChecker ErrorChecker) FinalizedBuilder {
+	c.errorChecker = errorChecker
+	return c
+}
+
 func (c *chain) Run() error {
 	if c.buildErrors.hasError {
 		return c.buildErrors
@@ -75,6 +80,9 @@ func (c *chain) Run() error {
 			if cmdDescriptor.errorChecker != nil {
 				// let the corresponding error check decide if the error is "relevant" or not
 				shouldAdd = cmdDescriptor.errorChecker(cmdIndex, cmdDescriptor.command, err)
+			} else if c.errorChecker != nil {
+				// let the global error check decide if the error is "relevant" or not
+				shouldAdd = c.errorChecker(cmdIndex, cmdDescriptor.command, err)
 			}
 
 			if shouldAdd {

@@ -405,13 +405,31 @@ func TestBrokenStreamAndRunError(t *testing.T) {
 	assert.Contains(t, mError.Errors()[1].Error(), "one or more command stream copies failed")
 }
 
-func TestIgnoreExitCode(t *testing.T) {
+func TestWithErrorChecker_IgnoreExitCode(t *testing.T) {
 	err := Builder().
 		Join(testHelper, "-o", "test", "-x", "1").WithErrorChecker(IgnoreExitCode(1)).
 		Join("grep", "test").
 		Finalize().Run()
 
 	assert.NoError(t, err)
+}
+
+func TestWithErrorChecker_IgnoreExitCode_global(t *testing.T) {
+	err := Builder().
+		Join(testHelper, "-o", "test", "-x", "1").
+		Join("grep", "test").
+		Finalize().WithGlobalErrorChecker(IgnoreExitCode(1)).Run()
+
+	assert.NoError(t, err)
+}
+
+func TestWithErrorChecker_IgnoreExitCode_globalAndSpecific(t *testing.T) {
+	err := Builder().
+		Join(testHelper, "-o", "test", "-x", "1").WithErrorChecker(IgnoreExitCode(1)).
+		Join("grep", "test").
+		Finalize().WithGlobalErrorChecker(IgnoreNothing()).Run()
+
+	assert.NoError(t, err, "it seams that the specific error checker was not called")
 }
 
 func TestHeadWillInterruptPreviousCommand(t *testing.T) {

@@ -124,7 +124,7 @@ type CommandBuilder interface {
 	// WithErrorChecker will configure the previously joined command to use the given error checker. In some cases
 	// the commands will return a non-zero exit code, which will normally cause an error at the FinalizedBuilder.Run().
 	// To avoid that you can use a ErrorChecker to ignore these kind of errors. There exists a set of functions which
-	// create a such ErrorChecker: IgnoreExitCode, IgnoreExitErrors, IgnoreAll
+	// create a such ErrorChecker: IgnoreExitCode, IgnoreExitErrors, IgnoreAll, IgnoreNothing
 	WithErrorChecker(ErrorChecker) CommandBuilder
 }
 
@@ -142,6 +142,13 @@ type FinalizedBuilder interface {
 	// closed before the chain normally ends, the chain will be exited. This is because of the behavior of the
 	// io.MultiWriter.
 	WithError(targets ...io.Writer) FinalizedBuilder
+
+	// WithGlobalErrorChecker will configure the complete chain to use the given error checker. If there is an error
+	// checker configured for a special command, this error checker will be skipped for these one. In some cases
+	// the commands will return a non-zero exit code, which will normally cause an error at the Run().
+	// To avoid that you can use a ErrorChecker to ignore these kind of errors. There exists a set of functions which
+	// create a such ErrorChecker: IgnoreExitCode, IgnoreExitErrors, IgnoreAll, IgnoreNothing
+	WithGlobalErrorChecker(ErrorChecker) FinalizedBuilder
 
 	// Run will execute the command chain. It will start all underlying commands and wait after completion of all of
 	// them. If the building of the chain was failed, an error will returned before the commands are started! In that

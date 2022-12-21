@@ -14,6 +14,7 @@ type chain struct {
 	streamErrors   MultipleErrors
 
 	streamRoutinesWg sync.WaitGroup
+	errorChecker     ErrorChecker
 }
 
 type cmdDescriptor struct {
