@@ -46,17 +46,29 @@ func (c *chain) Run() error {
 		}
 	}
 
-	//according to documentation of command's StdoutPipe()/StderrPipe() we have to wait for all stream reads are done
-	//after that we can wait for the commands:
-	//   "[...] It is thus incorrect to call Wait before all reads from the pipe have completed. [...]"
-	c.streamRoutinesWg.Wait()
-
 	runErrors := runErrors()
-	for cmdIndex, cmdDescriptor := range c.cmdDescriptors {
+	runErrors.errors = make([]error, len(c.cmdDescriptors))
+
+	// here we have to wait in reversed order because if the last command will not read their stdin anymore
+	// the previous command will wait endless for continuing writing to stdout
+	for cmdIndex := len(c.cmdDescriptors) - 1; cmdIndex >= 0; cmdIndex-- {
+		cmdDescriptor := c.cmdDescriptors[cmdIndex]
+
 		err := cmdDescriptor.command.Wait()
+		if closer, isCloser := cmdDescriptor.command.Stdin.(io.Closer); isCloser {
+			// This is little hard to understand. Let's assume we have the chain: cmd1->cmd2
+			//
+			// For pipelining the commands together we will use the "StdoutPipe()"-Method of the cmd1. The result of
+			// this method will be used as the Input-Stream of cmd2. But this pipe (cmd1.stdout -> cmd2.stdin) will be
+			// closed normally only after cmd1 will be exited. And cmd1 will only exit after their job is done! But if
+			// cmd2 will exit earlier (this can be happen if cmd2 will not consume the complete stdin-stream), cmd1 will
+			// wait for eternity! To avoid that, we have to close the cmd2' input-stream manually!
+
+			_ = closer.Close() // dont care about closing error
+		}
 
 		if err == nil {
-			runErrors.addError(nil)
+			runErrors.setError(cmdIndex, nil)
 		} else {
 			shouldAdd := true
 
@@ -66,12 +78,17 @@ func (c *chain) Run() error {
 			}
 
 			if shouldAdd {
-				runErrors.addError(err)
+				runErrors.setError(cmdIndex, err)
 			} else {
-				runErrors.addError(nil)
+				runErrors.setError(cmdIndex, nil)
 			}
 		}
 	}
+
+	//according to documentation of command's StdoutPipe()/StderrPipe() we have to wait for all stream reads are done
+	//after that we can wait for the commands:
+	//   "[...] It is thus incorrect to call Wait before all reads from the pipe have completed. [...]"
+	c.streamRoutinesWg.Wait()
 
 	switch {
 	case runErrors.hasError && c.streamErrors.hasError:

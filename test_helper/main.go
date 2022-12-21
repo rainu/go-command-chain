@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"sync"
 	"time"
 )
@@ -23,6 +24,13 @@ func main() {
 	exitCode := flag.Int("x", 0, "the exit code")
 
 	flag.Parse()
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs)
+	go func() {
+		<-sigs
+		os.Exit(125)
+	}()
 
 	if toErr != nil && *toErr != "" {
 		println(*toErr)
@@ -66,7 +74,7 @@ func handleOut(tickOut *time.Duration, tickInt *time.Duration, wg *sync.WaitGrou
 			for {
 				select {
 				case <-ticker.C:
-					fmt.Println("OUT")
+					fmt.Fprintf(os.Stdout, "OUT\n")
 				case <-timer.C:
 					break outLoop
 				}
@@ -88,7 +96,7 @@ func handleErr(tickErr *time.Duration, tickInt *time.Duration, wg *sync.WaitGrou
 			for {
 				select {
 				case <-ticker.C:
-					println("ERR")
+					fmt.Fprintf(os.Stderr, "ERR\n")
 				case <-timer.C:
 					break errLoop
 				}

@@ -228,7 +228,8 @@ func TestWithContext(t *testing.T) {
 		Finalize().WithOutput(output).Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, "one or more command has returned an error: [0 - signal: killed; 1 - ]", err.Error())
+	assert.Error(t, err.(MultipleErrors).errors[0])
+	assert.NoError(t, err.(MultipleErrors).errors[1])
 
 	assert.Equal(t, "OUT\n", output.String(), "It seams that the process was not interrupted.")
 }
@@ -411,6 +412,101 @@ func TestIgnoreExitCode(t *testing.T) {
 		Finalize().Run()
 
 	assert.NoError(t, err)
+}
+
+func TestHeadWillInterruptPreviousCommand(t *testing.T) {
+	output := &bytes.Buffer{}
+
+	//the "testHelper" command will permanently print output at their stdout
+	//but the command "head" will only print the FIRST line and exit after that
+	//the previous command (testhelper) should be interrupted because there is no one
+	//who reads their output
+
+	err := Builder().
+		Join(testHelper, "-ti", "1ms", "-to", "10s").
+		Join("head", "-1").
+		Finalize().WithOutput(output).Run()
+
+	assert.Error(t, err)
+	assert.Error(t, err.(MultipleErrors).errors[0])
+	assert.NoError(t, err.(MultipleErrors).errors[1])
+	assert.Equal(t, "OUT", strings.Trim(output.String(), "\n"))
+}
+
+func TestHeadWillInterruptPreviousCommand_withForkedOutput(t *testing.T) {
+	output := &bytes.Buffer{}
+	outputFork := &bytes.Buffer{}
+
+	//the "testHelper" command will permanently print output at their stdout
+	//but the command "head" will only print the FIRST line and exit after that
+	//the previous command (testhelper) should be interrupted because there is no one
+	//who reads their output
+
+	err := Builder().
+		Join(testHelper, "-ti", "1ms", "-to", "10s").WithOutputForks(outputFork).
+		Join("head", "-1").
+		Finalize().WithOutput(output).Run()
+
+	assert.Error(t, err)
+	assert.Equal(t, "OUT", strings.Trim(output.String(), "\n"))
+	assert.Contains(t, strings.Trim(outputFork.String(), "\n"), "OUT")
+}
+
+func TestHeadWillInterruptPreviousCommand_withStderr(t *testing.T) {
+	output := &bytes.Buffer{}
+
+	//the "testHelper" command will permanently print output at their stderr
+	//but the command "head" will only print the FIRST line and exit after that
+	//the previous command (testhelper) should be interrupted because there is no one
+	//who reads their output
+
+	err := Builder().
+		Join(testHelper, "-ti", "1ms", "-te", "10s").DiscardStdOut().ForwardError().
+		Join("head", "-1").
+		Finalize().WithOutput(output).Run()
+
+	assert.Error(t, err)
+	assert.Error(t, err.(MultipleErrors).errors[0])
+	assert.NoError(t, err.(MultipleErrors).errors[1])
+	assert.Equal(t, "ERR", strings.Trim(output.String(), "\n"))
+}
+
+func TestHeadWillInterruptPreviousCommand_withStderrFork(t *testing.T) {
+	output := &bytes.Buffer{}
+	outputFork := &bytes.Buffer{}
+
+	//the "testHelper" command will permanently print output at their stderr
+	//but the command "head" will only print the FIRST line and exit after that
+	//the previous command (testhelper) should be interrupted because there is no one
+	//who reads their output
+
+	err := Builder().
+		Join(testHelper, "-ti", "1ms", "-te", "10s").DiscardStdOut().ForwardError().WithErrorForks(outputFork).
+		Join("head", "-1").
+		Finalize().WithOutput(output).Run()
+
+	assert.Error(t, err)
+	assert.Equal(t, "ERR", strings.Trim(output.String(), "\n"))
+	assert.Contains(t, strings.Trim(outputFork.String(), "\n"), "ERR")
+}
+
+func TestHeadWillInterruptPreviousCommand_withCombined(t *testing.T) {
+	output := &bytes.Buffer{}
+
+	//the "testHelper" command will permanently print output at their stderr
+	//but the command "head" will only print the FIRST line and exit after that
+	//the previous command (testhelper) should be interrupted because there is no one
+	//who reads their output
+
+	err := Builder().
+		Join(testHelper, "-ti", "1ms", "-te", "10s").ForwardError().
+		Join("head", "-1").
+		Finalize().WithOutput(output).Run()
+
+	assert.Error(t, err)
+	assert.Error(t, err.(MultipleErrors).errors[0])
+	assert.NoError(t, err.(MultipleErrors).errors[1])
+	assert.Equal(t, "ERR", strings.Trim(output.String(), "\n"))
 }
 
 func runAndCompare(t *testing.T, toTest CommandBuilder, expected string) {
