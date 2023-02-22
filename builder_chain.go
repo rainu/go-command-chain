@@ -74,22 +74,33 @@ func (c *chain) JoinWithContext(ctx context.Context, name string, args ...string
 }
 
 func (c *chain) Finalize() FinalizedBuilder {
-	if len(c.cmdDescriptors) > 0 {
-		firstCmdDesc := &(c.cmdDescriptors[0])
+	if len(c.cmdDescriptors) == 0 {
+		return c
+	}
 
-		is := firstCmdDesc.inputStreams
-		firstCmdDesc.inputStreams = append([]io.Reader{}, c.inputs...)
-		firstCmdDesc.inputStreams = append(firstCmdDesc.inputStreams, is...)
+	firstCmdDesc := &(c.cmdDescriptors[0])
 
-		if len(c.inputs) == 1 {
-			firstCmdDesc.command.Stdin = c.inputs[0]
-		} else if len(c.inputs) > 1 {
-			var err error
-			firstCmdDesc.command.Stdin, err = c.combineStreamForCommand(0, c.inputs...)
-			if c.streamErrors.Errors()[0] == nil {
-				c.streamErrors.setError(0, err)
-			}
+	is := firstCmdDesc.inputStreams
+	firstCmdDesc.inputStreams = append([]io.Reader{}, c.inputs...)
+	firstCmdDesc.inputStreams = append(firstCmdDesc.inputStreams, is...)
+
+	if len(c.inputs) == 1 {
+		firstCmdDesc.command.Stdin = c.inputs[0]
+	} else if len(c.inputs) > 1 {
+		var err error
+		firstCmdDesc.command.Stdin, err = c.combineStreamForCommand(0, c.inputs...)
+		if c.streamErrors.Errors()[0] == nil {
+			c.streamErrors.setError(0, err)
 		}
 	}
+
+	lastCmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
+	if lastCmdDesc.outFork != nil {
+		lastCmdDesc.command.Stdout = lastCmdDesc.outFork
+	}
+	if lastCmdDesc.errFork != nil {
+		lastCmdDesc.command.Stderr = lastCmdDesc.errFork
+	}
+
 	return c
 }

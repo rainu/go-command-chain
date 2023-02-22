@@ -30,7 +30,7 @@ func (c *chain) DiscardStdOut() CommandBuilder {
 
 func (c *chain) WithOutputForks(targets ...io.Writer) CommandBuilder {
 	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
-	cmdDesc.outputStreams = append(cmdDesc.outputStreams, targets...)
+	cmdDesc.outputStreams = targets
 
 	if len(targets) > 1 {
 		cmdDesc.outFork = io.MultiWriter(targets...)
@@ -41,14 +41,39 @@ func (c *chain) WithOutputForks(targets ...io.Writer) CommandBuilder {
 	return c
 }
 
+func (c *chain) WithAdditionalOutputForks(targets ...io.Writer) CommandBuilder {
+	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
+	cmdDesc.outputStreams = append(cmdDesc.outputStreams, targets...)
+
+	if len(cmdDesc.outputStreams) > 1 {
+		cmdDesc.outFork = io.MultiWriter(cmdDesc.outputStreams...)
+	} else if len(cmdDesc.outputStreams) == 1 {
+		cmdDesc.outFork = cmdDesc.outputStreams[0]
+	}
+
+	return c
+}
+
 func (c *chain) WithErrorForks(targets ...io.Writer) CommandBuilder {
 	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
-	cmdDesc.errorStreams = append(cmdDesc.errorStreams, targets...)
+	cmdDesc.errorStreams = targets
 
 	if len(targets) > 1 {
 		cmdDesc.errFork = io.MultiWriter(targets...)
 	} else if len(targets) == 1 {
 		cmdDesc.errFork = targets[0]
+	}
+	return c
+}
+
+func (c *chain) WithAdditionalErrorForks(targets ...io.Writer) CommandBuilder {
+	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
+	cmdDesc.errorStreams = append(cmdDesc.errorStreams, targets...)
+
+	if len(cmdDesc.errorStreams) > 1 {
+		cmdDesc.errFork = io.MultiWriter(cmdDesc.errorStreams...)
+	} else if len(cmdDesc.errorStreams) == 1 {
+		cmdDesc.errFork = cmdDesc.errorStreams[0]
 	}
 	return c
 }

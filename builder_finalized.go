@@ -1,13 +1,14 @@
 package cmdchain
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 )
 
 func (c *chain) WithOutput(targets ...io.Writer) FinalizedBuilder {
 	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
-	cmdDesc.outputStreams = append(cmdDesc.outputStreams, targets...)
+	cmdDesc.outputStreams = targets
 
 	if len(targets) == 1 {
 		cmdDesc.command.Stdout = targets[0]
@@ -18,9 +19,22 @@ func (c *chain) WithOutput(targets ...io.Writer) FinalizedBuilder {
 	return c
 }
 
+func (c *chain) WithAdditionalOutput(targets ...io.Writer) FinalizedBuilder {
+	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
+	cmdDesc.outputStreams = append(cmdDesc.outputStreams, targets...)
+
+	if len(cmdDesc.outputStreams) == 1 {
+		cmdDesc.command.Stdout = cmdDesc.outputStreams[0]
+	} else if len(cmdDesc.outputStreams) > 1 {
+		cmdDesc.command.Stdout = io.MultiWriter(cmdDesc.outputStreams...)
+	}
+
+	return c
+}
+
 func (c *chain) WithError(targets ...io.Writer) FinalizedBuilder {
 	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
-	cmdDesc.errorStreams = append(cmdDesc.errorStreams, targets...)
+	cmdDesc.errorStreams = targets
 
 	if len(targets) == 1 {
 		cmdDesc.command.Stderr = targets[0]
@@ -31,9 +45,31 @@ func (c *chain) WithError(targets ...io.Writer) FinalizedBuilder {
 	return c
 }
 
+func (c *chain) WithAdditionalError(targets ...io.Writer) FinalizedBuilder {
+	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
+	cmdDesc.errorStreams = append(cmdDesc.errorStreams, targets...)
+
+	if len(cmdDesc.errorStreams) == 1 {
+		cmdDesc.command.Stderr = cmdDesc.errorStreams[0]
+	} else if len(cmdDesc.errorStreams) > 1 {
+		cmdDesc.command.Stderr = io.MultiWriter(cmdDesc.errorStreams...)
+	}
+
+	return c
+}
+
 func (c *chain) WithGlobalErrorChecker(errorChecker ErrorChecker) FinalizedBuilder {
 	c.errorChecker = errorChecker
 	return c
+}
+
+func (c *chain) RunAndGet() (string, string, error) {
+	streamOut := &bytes.Buffer{}
+	streamErr := &bytes.Buffer{}
+
+	err := c.WithAdditionalOutput(streamOut).WithAdditionalError(streamErr).Run()
+
+	return streamOut.String(), streamErr.String(), err
 }
 
 func (c *chain) Run() error {

@@ -87,6 +87,10 @@ type CommandBuilder interface {
 	// because of the this method uses the io.MultiWriter. And it will close the writer if on of them is closed.
 	WithOutputForks(targets ...io.Writer) CommandBuilder
 
+	// WithAdditionalOutputForks is similar to WithOutputForks except that the given targets will be added to the
+	// command and not be overwritten.
+	WithAdditionalOutputForks(targets ...io.Writer) CommandBuilder
+
 	// WithErrorForks will configure the previously joined command to redirect their stderr output to the configured
 	// target(s). The configured writer will be written in parallel so streaming is possible. If the previously
 	// joined command is also configured to redirect its stderr to the next command's input, the stderr output will
@@ -94,6 +98,10 @@ type CommandBuilder interface {
 	// ATTENTION: If one of the given writer will be closed before the command ends the command will be exited. This is
 	// because of the this method uses the io.MultiWriter. And it will close the writer if on of them is closed.
 	WithErrorForks(targets ...io.Writer) CommandBuilder
+
+	// WithAdditionalErrorForks is similar to WithErrorForks except that the given targets will be added to the
+	// command and not be overwritten.
+	WithAdditionalErrorForks(targets ...io.Writer) CommandBuilder
 
 	// WithInjections will configure the previously joined command to read from the given sources AND the predecessor
 	// command's stdout or stderr (depending on the configuration). This streams (stdout/stderr of predecessor command
@@ -137,11 +145,19 @@ type FinalizedBuilder interface {
 	// io.MultiWriter.
 	WithOutput(targets ...io.Writer) FinalizedBuilder
 
+	// WithAdditionalOutput is similar to WithOutput except that the given targets will be added to the
+	// command and not be overwritten.
+	WithAdditionalOutput(targets ...io.Writer) FinalizedBuilder
+
 	// WithError configures the stderr stream(s) for the last command in the chain. If there is more than one target
 	// given io.MultiWriter will be used as command's stdout. So in that case if there was one of the given targets
 	// closed before the chain normally ends, the chain will be exited. This is because of the behavior of the
 	// io.MultiWriter.
 	WithError(targets ...io.Writer) FinalizedBuilder
+
+	// WithAdditionalError is similar to WithError except that the given targets will be added to the
+	// command and not be overwritten.
+	WithAdditionalError(targets ...io.Writer) FinalizedBuilder
 
 	// WithGlobalErrorChecker will configure the complete chain to use the given error checker. If there is an error
 	// checker configured for a special command, this error checker will be skipped for these one. In some cases
@@ -157,6 +173,10 @@ type FinalizedBuilder interface {
 	// If any error occurs while commands are running, a MultipleErrors will return within all errors per
 	// command.
 	Run() error
+
+	// RunAndGet works like Run in addition the function will return the stdout and stderr of the command chain. Be
+	// careful with this convenience function because the stdout and stderr will be stored in memory!
+	RunAndGet() (string, string, error)
 
 	// String returns a string representation of the command chain.
 	String() string

@@ -38,6 +38,31 @@ func TestSimple(t *testing.T) {
 	runAndCompare(t, toTest, "1\n")
 }
 
+func TestSimple_runAndGet(t *testing.T) {
+	stdout, stderr, err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").
+		Finalize().RunAndGet()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "TEST\n", stdout)
+	assert.Equal(t, "ERROR\n", stderr)
+}
+
+func TestSimple_runAndGet_withForks(t *testing.T) {
+	outFork := &bytes.Buffer{}
+	errFork := &bytes.Buffer{}
+
+	stdout, stderr, err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").WithOutputForks(outFork).WithErrorForks(errFork).
+		Finalize().RunAndGet()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "TEST\n", outFork.String())
+	assert.Equal(t, "TEST\n", stdout)
+	assert.Equal(t, "ERROR\n", errFork.String())
+	assert.Equal(t, "ERROR\n", stderr)
+}
+
 func TestSimple_apply(t *testing.T) {
 	toTest := Builder().
 		Join(testHelper, "-pwd").Apply(func(_ int, command *exec.Cmd) {
@@ -73,6 +98,106 @@ func TestSimple_stderr(t *testing.T) {
 	assert.Equal(t, "ERROR\n", output.String())
 }
 
+func TestSimple_with_error(t *testing.T) {
+	output := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").
+		Finalize().WithError(output).WithError(output2).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "", output.String(), "first output stream should be overwritten")
+	assert.Equal(t, "ERROR\n", output2.String())
+}
+
+func TestSimple_with_additional_error_fork(t *testing.T) {
+	output := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").WithErrorForks(output).WithAdditionalErrorForks(output2).
+		Finalize().Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "ERROR\n", output.String())
+	assert.Equal(t, "ERROR\n", output2.String())
+}
+
+func TestSimple_with_additional_error_fork2(t *testing.T) {
+	output := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").WithAdditionalErrorForks(output).
+		Finalize().Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "ERROR\n", output.String())
+}
+
+func TestSimple_with_additional_error(t *testing.T) {
+	output := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").
+		Finalize().WithAdditionalError(output).WithAdditionalError(output2).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "ERROR\n", output.String())
+	assert.Equal(t, "ERROR\n", output2.String())
+}
+
+func TestSimple_with_output(t *testing.T) {
+	output := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").
+		Finalize().WithOutput(output).WithOutput(output2).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "", output.String(), "first output stream should be overwritten")
+	assert.Equal(t, "TEST\n", output2.String())
+}
+
+func TestSimple_with_additional_output_fork(t *testing.T) {
+	output := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").WithOutputForks(output).WithAdditionalOutputForks(output2).
+		Finalize().Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "TEST\n", output.String())
+	assert.Equal(t, "TEST\n", output2.String())
+}
+
+func TestSimple_with_additional_output_fork2(t *testing.T) {
+	output := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").WithAdditionalOutputForks(output).
+		Finalize().Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "TEST\n", output.String())
+}
+
+func TestSimple_with_additional_output(t *testing.T) {
+	output := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").
+		Finalize().WithAdditionalOutput(output).WithAdditionalOutput(output2).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "TEST\n", output.String())
+	assert.Equal(t, "TEST\n", output2.String())
+}
+
 func TestSimple_multi_stdout(t *testing.T) {
 	output1 := &bytes.Buffer{}
 	output2 := &bytes.Buffer{}
@@ -85,6 +210,19 @@ func TestSimple_multi_stdout(t *testing.T) {
 	assert.Equal(t, output1.String(), output2.String())
 }
 
+func TestSimple_multi_stdout_mixed(t *testing.T) {
+	output1 := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").WithOutputForks(output1).
+		Finalize().WithAdditionalOutput(output2).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "TEST\n", output1.String())
+	assert.Equal(t, "TEST\n", output2.String())
+}
+
 func TestSimple_multi_stderr(t *testing.T) {
 	output1 := &bytes.Buffer{}
 	output2 := &bytes.Buffer{}
@@ -95,6 +233,45 @@ func TestSimple_multi_stderr(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, output1.String(), output2.String())
+}
+
+func TestSimple_multi_stderr_mixed(t *testing.T) {
+	output1 := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").WithErrorForks(output1).
+		Finalize().WithAdditionalError(output2).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "ERROR\n", output1.String())
+	assert.Equal(t, "ERROR\n", output2.String())
+}
+
+func TestSimple_withOutput_overrides_prev(t *testing.T) {
+	output1 := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").WithOutputForks(output1).
+		Finalize().WithOutput(output2).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "", output1.String(), "first output stream should be overwritten")
+	assert.Equal(t, "TEST\n", output2.String())
+}
+
+func TestSimple_withError_overrides_prev(t *testing.T) {
+	output1 := &bytes.Buffer{}
+	output2 := &bytes.Buffer{}
+
+	err := Builder().
+		Join(testHelper, "-e", "ERROR", "-o", "TEST").WithErrorForks(output1).
+		Finalize().WithError(output2).Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "", output1.String(), "first output stream should be overwritten")
+	assert.Equal(t, "ERROR\n", output2.String())
 }
 
 func TestSimple_WithInput(t *testing.T) {
