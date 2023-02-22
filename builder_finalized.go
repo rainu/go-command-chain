@@ -6,20 +6,26 @@ import (
 )
 
 func (c *chain) WithOutput(targets ...io.Writer) FinalizedBuilder {
+	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
+	cmdDesc.outputStreams = append(cmdDesc.outputStreams, targets...)
+
 	if len(targets) == 1 {
-		c.cmdDescriptors[len(c.cmdDescriptors)-1].command.Stdout = targets[0]
+		cmdDesc.command.Stdout = targets[0]
 	} else if len(targets) > 1 {
-		c.cmdDescriptors[len(c.cmdDescriptors)-1].command.Stdout = io.MultiWriter(targets...)
+		cmdDesc.command.Stdout = io.MultiWriter(targets...)
 	}
 
 	return c
 }
 
 func (c *chain) WithError(targets ...io.Writer) FinalizedBuilder {
+	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
+	cmdDesc.errorStreams = append(cmdDesc.errorStreams, targets...)
+
 	if len(targets) == 1 {
-		c.cmdDescriptors[len(c.cmdDescriptors)-1].command.Stderr = targets[0]
+		cmdDesc.command.Stderr = targets[0]
 	} else if len(targets) > 1 {
-		c.cmdDescriptors[len(c.cmdDescriptors)-1].command.Stderr = io.MultiWriter(targets...)
+		cmdDesc.command.Stderr = io.MultiWriter(targets...)
 	}
 
 	return c

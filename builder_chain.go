@@ -25,6 +25,10 @@ type cmdDescriptor struct {
 	errFork        io.Writer
 	commandApplier []CommandApplier
 	errorChecker   ErrorChecker
+
+	inputStreams  []io.Reader
+	outputStreams []io.Writer
+	errorStreams  []io.Writer
 }
 
 // Builder creates a new command chain builder. This build flow will configure
@@ -71,12 +75,17 @@ func (c *chain) JoinWithContext(ctx context.Context, name string, args ...string
 
 func (c *chain) Finalize() FinalizedBuilder {
 	if len(c.cmdDescriptors) > 0 {
+		firstCmdDesc := &(c.cmdDescriptors[0])
+
+		is := firstCmdDesc.inputStreams
+		firstCmdDesc.inputStreams = append([]io.Reader{}, c.inputs...)
+		firstCmdDesc.inputStreams = append(firstCmdDesc.inputStreams, is...)
 
 		if len(c.inputs) == 1 {
-			c.cmdDescriptors[0].command.Stdin = c.inputs[0]
+			firstCmdDesc.command.Stdin = c.inputs[0]
 		} else if len(c.inputs) > 1 {
 			var err error
-			c.cmdDescriptors[0].command.Stdin, err = c.combineStreamForCommand(0, c.inputs...)
+			firstCmdDesc.command.Stdin, err = c.combineStreamForCommand(0, c.inputs...)
 			if c.streamErrors.Errors()[0] == nil {
 				c.streamErrors.setError(0, err)
 			}

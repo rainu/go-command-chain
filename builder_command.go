@@ -29,26 +29,33 @@ func (c *chain) DiscardStdOut() CommandBuilder {
 }
 
 func (c *chain) WithOutputForks(targets ...io.Writer) CommandBuilder {
+	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
+	cmdDesc.outputStreams = append(cmdDesc.outputStreams, targets...)
+
 	if len(targets) > 1 {
-		c.cmdDescriptors[len(c.cmdDescriptors)-1].outFork = io.MultiWriter(targets...)
+		cmdDesc.outFork = io.MultiWriter(targets...)
 	} else if len(targets) == 1 {
-		c.cmdDescriptors[len(c.cmdDescriptors)-1].outFork = targets[0]
+		cmdDesc.outFork = targets[0]
 	}
 
 	return c
 }
 
 func (c *chain) WithErrorForks(targets ...io.Writer) CommandBuilder {
+	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
+	cmdDesc.errorStreams = append(cmdDesc.errorStreams, targets...)
+
 	if len(targets) > 1 {
-		c.cmdDescriptors[len(c.cmdDescriptors)-1].errFork = io.MultiWriter(targets...)
+		cmdDesc.errFork = io.MultiWriter(targets...)
 	} else if len(targets) == 1 {
-		c.cmdDescriptors[len(c.cmdDescriptors)-1].errFork = targets[0]
+		cmdDesc.errFork = targets[0]
 	}
 	return c
 }
 
 func (c *chain) WithInjections(sources ...io.Reader) CommandBuilder {
-	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
+	cmdDesc := &(c.cmdDescriptors[len(c.cmdDescriptors)-1])
+	cmdDesc.inputStreams = append(cmdDesc.inputStreams, sources...)
 
 	if len(sources) > 0 {
 		combineSrc := make([]io.Reader, 0, len(sources)+1)
@@ -62,7 +69,9 @@ func (c *chain) WithInjections(sources ...io.Reader) CommandBuilder {
 			}
 		}
 
-		if len(combineSrc) > 0 {
+		if len(combineSrc) == 1 {
+			cmdDesc.command.Stdin = combineSrc[0]
+		} else if len(combineSrc) > 1 {
 			var err error
 			cmdDesc.command.Stdin, err = c.combineStream(combineSrc...)
 			if err != nil {

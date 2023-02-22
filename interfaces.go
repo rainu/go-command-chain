@@ -157,4 +157,7 @@ type FinalizedBuilder interface {
 	// If any error occurs while commands are running, a MultipleErrors will return within all errors per
 	// command.
 	Run() error
+
+	// String returns a string representation of the command chain.
+	String() string
 }
