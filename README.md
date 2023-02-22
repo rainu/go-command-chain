@@ -15,24 +15,24 @@ cat log_file.txt | grep error | wc -l
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/rainu/go-command-chain"
 )
 
 func main() {
-	output := &bytes.Buffer{}
-
-	err := cmdchain.Builder().
+	stdOut, stdErr, err := cmdchain.Builder().
 		Join("cat", "log_file.txt").
 		Join("grep", "error").
 		Join("wc", "-l").
-		Finalize().WithOutput(output).Run()
+		Finalize().RunAndGet()
 
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Errors found: %s", output)
+	if stdErr != "" {
+		panic(stdErr)
+	}
+	fmt.Printf("Errors found: %s", stdOut)
 }
 ```
 

@@ -237,3 +237,19 @@ func ExampleBuilder_run() {
 	}
 	println(output.String())
 }
+
+func ExampleBuilder_runAndGet() {
+	//it's the same as in shell: ls -l | grep README | wc -l
+	sout, serr, err := cmdchain.Builder().
+		Join("ls", "-l").
+		Join("grep", "README").
+		Join("wc", "-l").
+		Finalize().
+		RunAndGet()
+
+	if err != nil {
+		panic(err)
+	}
+	println("OUTPUT: " + sout)
+	println("ERROR: " + serr)
+}
