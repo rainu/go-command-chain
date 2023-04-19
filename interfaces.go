@@ -109,6 +109,10 @@ type CommandBuilder interface {
 	// If this behavior is not wanted, me the io.MultiReader is a better choice.
 	WithInjections(sources ...io.Reader) CommandBuilder
 
+	// WithEmptyEnvironment will use an empty environment for the previously joined command. The default behavior is to
+	// use the current process's environment.
+	WithEmptyEnvironment() CommandBuilder
+
 	// WithEnvironment will configure the previously joined command to use the given environment variables. Key-value
 	// pair(s) must be passed as arguments. Where the first represents the key and the second the value of the
 	// environment variable.
@@ -117,6 +121,10 @@ type CommandBuilder interface {
 	// WithEnvironmentMap will configure the previously joined command to use the given environment variables.
 	WithEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder
 
+	// WithEnvironmentPairs will configure the previously joined command to use the given environment variables.
+	// Each entry must have the form "key=value"
+	WithEnvironmentPairs(envMap ...string) CommandBuilder
+
 	// WithAdditionalEnvironment will do almost the same thing as WithEnvironment expecting that the given key-value
 	// pairs will be joined with the environment variables of the current process.
 	WithAdditionalEnvironment(envMap ...interface{}) CommandBuilder
@@ -124,6 +132,10 @@ type CommandBuilder interface {
 	// WithAdditionalEnvironmentMap will do almost the same thing as WithEnvironmentMap expecting that the given
 	// values will be joined with the environment variables of the current process.
 	WithAdditionalEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder
+
+	// WithAdditionalEnvironmentPairs will do almost the same thing as WithEnvironmentPairs expecting that the given
+	// values will be joined with the environment variables of the current process.
+	WithAdditionalEnvironmentPairs(envMap ...string) CommandBuilder
 
 	// WithWorkingDirectory will configure the previously joined command to use the specifies the working directory.
 	// Without setting the working directory, the calling process's current directory will be used.

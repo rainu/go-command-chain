@@ -108,6 +108,13 @@ func (c *chain) WithInjections(sources ...io.Reader) CommandBuilder {
 	return c
 }
 
+func (c *chain) WithEmptyEnvironment() CommandBuilder {
+	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
+	cmdDesc.command.Env = []string{}
+
+	return c
+}
+
 func (c *chain) WithEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder {
 	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
 
@@ -127,6 +134,17 @@ func (c *chain) WithEnvironment(envMap ...interface{}) CommandBuilder {
 	for i := 0; i < len(envMap); i += 2 {
 		cmdDesc.command.Env = append(cmdDesc.command.Env, fmt.Sprintf("%v=%v", envMap[i], envMap[i+1]))
 	}
+
+	return c
+}
+
+func (c *chain) WithEnvironmentPairs(envMap ...string) CommandBuilder {
+	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
+
+	for _, entry := range envMap {
+		cmdDesc.command.Env = append(cmdDesc.command.Env, entry)
+	}
+
 	return c
 }
 
@@ -146,6 +164,18 @@ func (c *chain) WithAdditionalEnvironment(envMap ...interface{}) CommandBuilder 
 	}
 
 	return c.WithEnvironment(envMap...)
+}
+
+func (c *chain) WithAdditionalEnvironmentPairs(envMap ...string) CommandBuilder {
+	cmdDesc := c.cmdDescriptors[len(c.cmdDescriptors)-1]
+	pairs := cmdDesc.command.Env
+
+	if len(pairs) == 0 {
+		pairs = os.Environ()
+	}
+	pairs = append(pairs, envMap...)
+
+	return c.WithEnvironmentPairs(pairs...)
 }
 
 func (c *chain) WithWorkingDirectory(workingDir string) CommandBuilder {

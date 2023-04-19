@@ -292,6 +292,19 @@ func TestSimple_WithMultiInput(t *testing.T) {
 	runAndCompare(t, toTest, "2\n")
 }
 
+func TestSimple_WithProcessEnvironment(t *testing.T) {
+	chainWithEnv := Builder().Join(testHelper, "-pe")
+	chainWithoutEnv := Builder().Join(testHelper, "-pe").WithEmptyEnvironment()
+
+	out1, _, err := chainWithEnv.Finalize().RunAndGet()
+	assert.NoError(t, err)
+
+	out2, _, err := chainWithoutEnv.Finalize().RunAndGet()
+	assert.NoError(t, err)
+
+	assert.NotEqual(t, out1, out2)
+}
+
 func TestSimple_WithEnvironment(t *testing.T) {
 	toTest := Builder().
 		Join(testHelper, "-pe").WithEnvironment("TEST", "VALUE", "TEST2", 2)
@@ -302,6 +315,14 @@ func TestSimple_WithEnvironment(t *testing.T) {
 func TestSimple_WithEnvironmentMap(t *testing.T) {
 	toTest := Builder().
 		Join(testHelper, "-pe").WithEnvironmentMap(map[interface{}]interface{}{"GO_COMMAND_CHAIN_TEST": "VALUE", "GO_COMMAND_CHAIN_TEST2": 2}).
+		Join("sort")
+
+	runAndCompare(t, toTest, "GO_COMMAND_CHAIN_TEST2=2\nGO_COMMAND_CHAIN_TEST=VALUE\n")
+}
+
+func TestSimple_WithEnvironmentPairs(t *testing.T) {
+	toTest := Builder().
+		Join(testHelper, "-pe").WithEnvironmentPairs("GO_COMMAND_CHAIN_TEST=VALUE", "GO_COMMAND_CHAIN_TEST2=2").
 		Join("sort")
 
 	runAndCompare(t, toTest, "GO_COMMAND_CHAIN_TEST2=2\nGO_COMMAND_CHAIN_TEST=VALUE\n")
@@ -325,6 +346,15 @@ func TestSimple_WithAdditionalEnvironmentMap(t *testing.T) {
 	runAndCompare(t, toTest, "GO_COMMAND_CHAIN_TEST2=2\nGO_COMMAND_CHAIN_TEST=VALUE\n")
 }
 
+func TestSimple_WithAdditionalEnvironmentPairs(t *testing.T) {
+	toTest := Builder().
+		Join(testHelper, "-pe").WithAdditionalEnvironmentPairs("GO_COMMAND_CHAIN_TEST=VALUE", "GO_COMMAND_CHAIN_TEST2=2").
+		Join("grep", "GO_COMMAND_CHAIN_TEST").
+		Join("sort")
+
+	runAndCompare(t, toTest, "GO_COMMAND_CHAIN_TEST2=2\nGO_COMMAND_CHAIN_TEST=VALUE\n")
+}
+
 func TestSimple_WithAdditionalEnvironment_butNotProcessEnv(t *testing.T) {
 	cmd := exec.Command(testHelper, "-pe")
 	cmd.Env = []string{"TEST=VALUE"}
@@ -341,6 +371,16 @@ func TestSimple_WithAdditionalEnvironmentMap_butNotProcessEnv(t *testing.T) {
 
 	toTest := Builder().
 		JoinCmd(cmd).WithAdditionalEnvironmentMap(map[interface{}]interface{}{"TEST2": 2})
+
+	runAndCompare(t, toTest, "TEST=VALUE\nTEST2=2\n")
+}
+
+func TestSimple_WithAdditionalEnvironmentPairs_butNotProcessEnv(t *testing.T) {
+	cmd := exec.Command(testHelper, "-pe")
+	cmd.Env = []string{"TEST=VALUE"}
+
+	toTest := Builder().
+		JoinCmd(cmd).WithAdditionalEnvironmentPairs("TEST2=2")
 
 	runAndCompare(t, toTest, "TEST=VALUE\nTEST2=2\n")
 }
