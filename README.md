@@ -4,6 +4,8 @@
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
 # go-command-chain
+![](https://media.discordapp.net/attachments/1101609055094575192/1102605830592925717/rainu_cyberpunkt_netrunner_cat_1_dad93401-86aa-4ea2-b4d6-c171077d401d.png)
+
 A go library for easy configure and run command chains. Such like pipelining in unix shells.
 
 # Example
