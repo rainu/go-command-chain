@@ -39,6 +39,13 @@ func newShellParser(command string, sources []io.Reader) (*shellParser, error) {
 }
 
 func (s *shellParser) Parse() (FinalizedBuilder, error) {
+	if len(s.program.Stmts) == 0 {
+		return nil, fmt.Errorf("no statements")
+	}
+	if len(s.program.Stmts) > 1 {
+		return nil, fmt.Errorf("multiple statements are not supported, found %d statements", len(s.program.Stmts))
+	}
+
 	err := s.handleCommand(s.program.Stmts[0].Cmd)
 	if err != nil {
 		return nil, err
@@ -54,17 +61,39 @@ func (s *shellParser) handleCommand(cmd syntax.Command) error {
 	case *syntax.BinaryCmd:
 		return s.handleBinary(c)
 	default:
-		return fmt.Errorf("unsupported command at %s - %s", c.Pos().String(), c.End().String())
+		return errorWithPos(c, "unsupported command")
 	}
 }
 
 func (s *shellParser) handleCall(c *syntax.CallExpr) error {
 	commandName, arguments, err := s.extractCommandAndArgs(c.Args)
 	if err != nil {
-		return fmt.Errorf("error extracting command and arguments at %s - %s: %w", c.Pos().String(), c.End().String(), err)
+		return errorWithPos(c, "error extracting command and arguments", err)
 	}
 
 	s.chain = s.chain.Join(commandName, arguments...).(*chain)
+	return s.handleAssigns(c.Assigns)
+}
+
+func (s *shellParser) handleAssigns(assigns []*syntax.Assign) error {
+	var env []string
+
+	for _, assign := range assigns {
+		if assign.Value == nil && assign.Array == nil && assign.Index == nil {
+			// This is a simple assignment without value, e.g., `VAR=`
+			env = append(env, fmt.Sprintf("%s=", assign.Name.Value))
+		} else if assign.Value != nil {
+			value, err := s.convertWord(assign.Value)
+			if err != nil {
+				return errorWithPos(assign, "error converting assignment value", err)
+			}
+			env = append(env, fmt.Sprintf("%s=%s", assign.Name.Value, value))
+		} else {
+			return errorWithPos(assign, "unsupported assignment")
+		}
+	}
+
+	s.chain.WithAdditionalEnvironmentPairs(env...)
 	return nil
 }
 
@@ -78,7 +107,7 @@ func (s *shellParser) handleBinary(b *syntax.BinaryCmd) error {
 	case syntax.PipeAll: // |&
 		s.chain = s.chain.ForwardError().(*chain)
 	default:
-		return fmt.Errorf("unsupported binary operator '%s' at position %s", b.Op, b.OpPos.String())
+		return errorWithPos(b, fmt.Sprintf("unsupported binary operator at '%s'", b.OpPos.String()))
 	}
 
 	return s.handleCommand(b.Y.Cmd)
@@ -134,7 +163,7 @@ func (s *shellParser) convertWordParts(parts []syntax.WordPart) (result string, 
 
 			result += r
 		default:
-			err = fmt.Errorf("unsupported word at %s - %s", part.Pos().String(), part.End().String())
+			err = errorWithPos(part, "unsupported word")
 			return
 		}
 	}

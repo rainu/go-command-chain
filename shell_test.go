@@ -2,6 +2,7 @@ package cmdchain
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 )
@@ -12,7 +13,17 @@ func TestFromShell(t *testing.T) {
 		command        string
 		expectedString string
 		expectError    string
+		check          func(*testing.T, *chain)
 	}{
+		{
+			name:    "simple",
+			command: `date`,
+			expectedString: `
+[SO]               ╿
+[CM] /usr/bin/date ╡
+[SE]               ╽
+`,
+		},
 		{
 			name:    "simple double quoted",
 			command: `echo "Hello, World!"`,
@@ -76,6 +87,66 @@ func TestFromShell(t *testing.T) {
 [SE]                                 ╰╯                       ╰╯                  ╽
 `,
 		},
+		{
+			name:    "local environment variable",
+			command: `MY_VAR=1 date`,
+			expectedString: `
+[SO]               ╿
+[CM] /usr/bin/date ╡
+[SE]               ╽
+`,
+			check: func(t *testing.T, chain *chain) {
+				assert.Contains(t, chain.cmdDescriptors[0].command.Env, "MY_VAR=1")
+			},
+		},
+		{
+			name:    "local environment variables",
+			command: `MY_VAR=1 MY_SEC_VAR=2 date`,
+			expectedString: `
+[SO]               ╿
+[CM] /usr/bin/date ╡
+[SE]               ╽
+`,
+			check: func(t *testing.T, chain *chain) {
+				assert.Contains(t, chain.cmdDescriptors[0].command.Env, "MY_VAR=1")
+				assert.Contains(t, chain.cmdDescriptors[0].command.Env, "MY_SEC_VAR=2")
+			},
+		},
+		{
+			name:    "duplicate local environment variables",
+			command: `MY_VAR=1 MY_VAR=2 date`,
+			expectedString: `
+[SO]               ╿
+[CM] /usr/bin/date ╡
+[SE]               ╽
+`,
+			check: func(t *testing.T, chain *chain) {
+				assert.Contains(t, chain.cmdDescriptors[0].command.Env, "MY_VAR=1")
+				assert.Contains(t, chain.cmdDescriptors[0].command.Env, "MY_VAR=2")
+			},
+		},
+		{
+			name:    "empty environment variable",
+			command: `MY_VAR= date`,
+			expectedString: `
+[SO]               ╿
+[CM] /usr/bin/date ╡
+[SE]               ╽
+`,
+			check: func(t *testing.T, chain *chain) {
+				assert.Contains(t, chain.cmdDescriptors[0].command.Env, "MY_VAR=")
+			},
+		},
+		{
+			name:        "no statements",
+			command:     ``,
+			expectError: "no statements",
+		},
+		{
+			name:        "multiple statements",
+			command:     `date; date`,
+			expectError: "multiple statements are not supported, found 2 statements",
+		},
 	}
 
 	for _, tt := range tests {
@@ -83,8 +154,12 @@ func TestFromShell(t *testing.T) {
 			cmd, err := FromShell(tt.command)
 
 			if tt.expectError == "" {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, strings.TrimSpace(tt.expectedString), strings.TrimSpace(cmd.String()))
+
+				if tt.check != nil {
+					tt.check(t, cmd.(*chain))
+				}
 			} else {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectError)
