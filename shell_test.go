@@ -3,6 +3,7 @@ package cmdchain
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"os"
 	"strings"
 	"testing"
 )
@@ -146,6 +147,74 @@ func TestFromShell(t *testing.T) {
 			name:        "multiple statements",
 			command:     `date; date`,
 			expectError: "multiple statements are not supported, found 2 statements",
+		},
+		{
+			name:        "logical OR concatenation",
+			command:     `date || date`,
+			expectError: "[1:1 - 1:13] unsupported binary operator '||' at '1:6'",
+		},
+		{
+			name:        "logical AND concatenation",
+			command:     `date && date`,
+			expectError: "[1:1 - 1:13] unsupported binary operator '&&' at '1:6'",
+		},
+		{
+			name:    "file redirection",
+			command: `date > /tmp/out |& grep 'Hello'`,
+			expectedString: `
+[OS]               ╭  *os.File
+[SO]               ├╮                       ╿
+[CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
+[SE]               ╰╯                       ╽
+`,
+			check: func(t *testing.T, c *chain) {
+				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
+				assert.Empty(t, c.cmdDescriptors[0].errorStreams)
+			},
+		},
+		{
+			name:    "file redirection (appending)",
+			command: `date >> /tmp/out |& grep 'Hello'`,
+			expectedString: `
+[OS]               ╭  *os.File
+[SO]               ├╮                       ╿
+[CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
+[SE]               ╰╯                       ╽
+`,
+			check: func(t *testing.T, c *chain) {
+				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
+				assert.Empty(t, c.cmdDescriptors[0].errorStreams)
+			},
+		},
+		{
+			name:    "both file redirection",
+			command: `date &> /tmp/out |& grep 'Hello'`,
+			expectedString: `
+[OS]               ╭  *os.File
+[SO]               ├╮                       ╿
+[CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
+[SE]               ├╯                       ╽
+[ES]               ╰  *os.File
+`,
+			check: func(t *testing.T, c *chain) {
+				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
+				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].errorStreams[0].(*os.File).Name())
+			},
+		},
+		{
+			name:    "both file redirection (appending)",
+			command: `date &>> /tmp/out |& grep 'Hello'`,
+			expectedString: `
+[OS]               ╭  *os.File
+[SO]               ├╮                       ╿
+[CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
+[SE]               ├╯                       ╽
+[ES]               ╰  *os.File
+`,
+			check: func(t *testing.T, c *chain) {
+				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
+				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].errorStreams[0].(*os.File).Name())
+			},
 		},
 	}
 

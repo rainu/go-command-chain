@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"mvdan.cc/sh/v3/syntax"
+	"os"
 	"strings"
 )
 
@@ -46,7 +47,7 @@ func (s *shellParser) Parse() (FinalizedBuilder, error) {
 		return nil, fmt.Errorf("multiple statements are not supported, found %d statements", len(s.program.Stmts))
 	}
 
-	err := s.handleCommand(s.program.Stmts[0].Cmd)
+	err := s.handleCommand(s.program.Stmts[0].Cmd, s.program.Stmts[0].Redirs)
 	if err != nil {
 		return nil, err
 	}
@@ -54,10 +55,10 @@ func (s *shellParser) Parse() (FinalizedBuilder, error) {
 	return s.chain.Finalize(), nil
 }
 
-func (s *shellParser) handleCommand(cmd syntax.Command) error {
+func (s *shellParser) handleCommand(cmd syntax.Command, redirs []*syntax.Redirect) error {
 	switch c := cmd.(type) {
 	case *syntax.CallExpr:
-		return s.handleCall(c)
+		return s.handleCall(c, redirs)
 	case *syntax.BinaryCmd:
 		return s.handleBinary(c)
 	default:
@@ -65,14 +66,97 @@ func (s *shellParser) handleCommand(cmd syntax.Command) error {
 	}
 }
 
-func (s *shellParser) handleCall(c *syntax.CallExpr) error {
+func (s *shellParser) handleCall(c *syntax.CallExpr, redirs []*syntax.Redirect) error {
 	commandName, arguments, err := s.extractCommandAndArgs(c.Args)
 	if err != nil {
 		return errorWithPos(c, "error extracting command and arguments", err)
 	}
 
 	s.chain = s.chain.Join(commandName, arguments...).(*chain)
-	return s.handleAssigns(c.Assigns)
+
+	err = s.handleAssigns(c.Assigns)
+	if err != nil {
+		return err
+	}
+
+	return s.handleRedirects(redirs)
+}
+
+func (s *shellParser) handleRedirects(redirs []*syntax.Redirect) (err error) {
+	var outputStreams []io.Writer
+	var errorStreams []io.Writer
+	var files []*os.File
+
+	// in case of any error, we have to ensure that all opened files are closed
+	defer func() {
+		if err != nil {
+			for _, file := range files {
+				file.Close()
+			}
+		}
+	}()
+
+	for _, redir := range redirs {
+		switch redir.Op {
+		case syntax.RdrAll: // &>
+		case syntax.AppAll: // &>>
+		case syntax.RdrOut: // >
+		case syntax.AppOut: // >>
+		default:
+			return errorWithPos(redir, fmt.Sprintf("unsupported redirection operator '%s'", redir.Op.String()))
+		}
+
+		var targetFile *os.File
+		targetFile, err = s.setupStream(redir)
+		if err != nil {
+			return err
+		}
+		files = append(files, targetFile)
+
+		if redir.Op != syntax.RdrOut && redir.Op != syntax.AppOut {
+			errorStreams = append(errorStreams, targetFile)
+		}
+		outputStreams = append(outputStreams, targetFile)
+	}
+
+	s.chain.WithOutputForks(outputStreams...)
+	s.chain.WithErrorForks(errorStreams...)
+
+	return nil
+}
+
+func (s *shellParser) setupStream(redir *syntax.Redirect) (*os.File, error) {
+	target, err := s.convertWord(redir.Word)
+	if err != nil {
+		return nil, errorWithPos(redir, "error converting output redirection target", err)
+	}
+	if target == "" {
+		return nil, errorWithPos(redir, "missing output redirection target")
+	}
+
+	flag := os.O_WRONLY | os.O_CREATE
+
+	switch redir.Op {
+	case syntax.RdrAll:
+		fallthrough
+	case syntax.RdrOut:
+		flag |= os.O_TRUNC
+	case syntax.AppAll:
+		fallthrough
+	case syntax.AppOut:
+		flag |= os.O_APPEND
+	default:
+	}
+
+	//TODO: must be closed after command execution; Must be "reopen" if command run again
+	// maybe a "lazy file" would be a good idea:
+	// * only open when first write (this would prevent opening files that are never used)
+	// * close when command execution finished
+	f, err := os.OpenFile(target, flag, 0644)
+	if err != nil {
+		return nil, errorWithPos(redir, fmt.Sprintf("error opening output file '%s'", target), err)
+	}
+	return f, nil
 }
 
 func (s *shellParser) handleAssigns(assigns []*syntax.Assign) error {
@@ -98,7 +182,7 @@ func (s *shellParser) handleAssigns(assigns []*syntax.Assign) error {
 }
 
 func (s *shellParser) handleBinary(b *syntax.BinaryCmd) error {
-	if err := s.handleCommand(b.X.Cmd); err != nil {
+	if err := s.handleCommand(b.X.Cmd, b.X.Redirs); err != nil {
 		return err
 	}
 
@@ -107,10 +191,10 @@ func (s *shellParser) handleBinary(b *syntax.BinaryCmd) error {
 	case syntax.PipeAll: // |&
 		s.chain = s.chain.ForwardError().(*chain)
 	default:
-		return errorWithPos(b, fmt.Sprintf("unsupported binary operator at '%s'", b.OpPos.String()))
+		return errorWithPos(b, fmt.Sprintf("unsupported binary operator '%s' at '%s'", b.Op.String(), b.OpPos.String()))
 	}
 
-	return s.handleCommand(b.Y.Cmd)
+	return s.handleCommand(b.Y.Cmd, b.Y.Redirs)
 }
 
 func (s *shellParser) extractCommandAndArgs(words []*syntax.Word) (commandName string, arguments []string, err error) {
