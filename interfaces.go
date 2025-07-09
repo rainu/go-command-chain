@@ -51,10 +51,10 @@ type ChainBuilder interface {
 	//	1. /usr/bin/echo "Hello," "World!"
 	//	2. /usr/bin/grep "Hello"
 	//	3. /usr/bin/wc -c
-	JoinShellCmd(command string) ChainBuilder
+	JoinShellCmd(command string) ShellCommandBuilder
 
 	// JoinShellCmdWithContext is like JoinShellCmd but includes the given context to all created commands.
-	JoinShellCmdWithContext(ctx context.Context, command string) ChainBuilder
+	JoinShellCmdWithContext(ctx context.Context, command string) ShellCommandBuilder
 
 	// Finalize will finish the command joining process. After calling this method no command can be joined anymore.
 	// Instead final configurations can be made and the chain is ready to run.
@@ -75,24 +75,7 @@ type FirstCommandBuilder interface {
 // CommandApplier is a function which will get the command's index and the command's reference
 type CommandApplier func(index int, command *exec.Cmd)
 
-// CommandBuilder contains methods for configuring the previous joined command.
-type CommandBuilder interface {
-	ChainBuilder
-
-	// Apply will call the given CommandApplier with the previously joined command. The CommandApplier can do anything
-	// with the previously joined command. The CommandApplier will be called directly so the command which the applier
-	// will be received has included all changes which made before this function call.
-	// ATTENTION: Be aware of the changes the CommandApplier will make. This can clash with the changes the building
-	// pipeline will make!
-	Apply(CommandApplier) CommandBuilder
-
-	// ApplyBeforeStart will call the given CommandApplier with the previously joined command. The CommandApplier can do
-	// anything with the previously joined command. The CommandApplier will be called before the command will be started
-	// so the command is almost finished (all streams are configured and so on).
-	// ATTENTION: Be aware of the changes the CommandApplier will make. This can clash with the changes the building
-	// pipeline will make!
-	ApplyBeforeStart(CommandApplier) CommandBuilder
-
+type outputBuilder interface {
 	// ForwardError will configure the previously joined command to redirect all its stderr output to the next
 	// command's input. If WithErrorForks is also used, the stderr output of the previously joined command will
 	// be redirected to both: stdin of the next command AND the configured fork(s).
@@ -129,6 +112,26 @@ type CommandBuilder interface {
 	// WithAdditionalErrorForks is similar to WithErrorForks except that the given targets will be added to the
 	// command and not be overwritten.
 	WithAdditionalErrorForks(targets ...io.Writer) CommandBuilder
+}
+
+// CommandBuilder contains methods for configuring the previous joined command.
+type CommandBuilder interface {
+	ChainBuilder
+	outputBuilder
+
+	// Apply will call the given CommandApplier with the previously joined command. The CommandApplier can do anything
+	// with the previously joined command. The CommandApplier will be called directly so the command which the applier
+	// will be received has included all changes which made before this function call.
+	// ATTENTION: Be aware of the changes the CommandApplier will make. This can clash with the changes the building
+	// pipeline will make!
+	Apply(CommandApplier) CommandBuilder
+
+	// ApplyBeforeStart will call the given CommandApplier with the previously joined command. The CommandApplier can do
+	// anything with the previously joined command. The CommandApplier will be called before the command will be started
+	// so the command is almost finished (all streams are configured and so on).
+	// ATTENTION: Be aware of the changes the CommandApplier will make. This can clash with the changes the building
+	// pipeline will make!
+	ApplyBeforeStart(CommandApplier) CommandBuilder
 
 	// WithInjections will configure the previously joined command to read from the given sources AND the predecessor
 	// command's stdout or stderr (depending on the configuration). This streams (stdout/stderr of predecessor command
@@ -173,6 +176,12 @@ type CommandBuilder interface {
 	// To avoid that you can use a ErrorChecker to ignore these kind of errors. There exists a set of functions which
 	// create a such ErrorChecker: IgnoreExitCode, IgnoreExitErrors, IgnoreAll, IgnoreNothing
 	WithErrorChecker(ErrorChecker) CommandBuilder
+}
+
+// ShellCommandBuilder contains methods for configuring the previous joined shell command.
+type ShellCommandBuilder interface {
+	ChainBuilder
+	outputBuilder
 }
 
 // FinalizedBuilder contains methods for configuration the the finalized chain. At this step the chain can be running.

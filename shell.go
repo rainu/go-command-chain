@@ -9,12 +9,12 @@ import (
 	"strings"
 )
 
-func (c *chain) JoinShellCmd(command string) ChainBuilder {
+func (c *chain) JoinShellCmd(command string) ShellCommandBuilder {
 	c.parseAndJoinShell(nil, command)
 	return c
 }
 
-func (c *chain) JoinShellCmdWithContext(ctx context.Context, command string) ChainBuilder {
+func (c *chain) JoinShellCmdWithContext(ctx context.Context, command string) ShellCommandBuilder {
 	c.parseAndJoinShell(ctx, command)
 	return c
 }
