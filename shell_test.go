@@ -3,7 +3,6 @@ package cmdchain
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -165,16 +164,35 @@ func TestJoinShellCmd(t *testing.T) {
 			expectError: "background execution is not supported",
 		},
 		{
+			name:    "error redirection",
+			command: `date 2> /tmp/err | grep 'Hello'`,
+			expectedString: `
+[SO]               ╭╮                       ╿
+[CM] /usr/bin/date ╡╰ /usr/bin/grep "Hello" ╡
+[SE]               │                        ╽
+[ES]               ╰  /tmp/err
+`,
+		},
+		{
+			name:    "error redirection (appending)",
+			command: `date 2>> /tmp/err | grep 'Hello'`,
+			expectedString: `
+[SO]               ╭╮                       ╿
+[CM] /usr/bin/date ╡╰ /usr/bin/grep "Hello" ╡
+[SE]               │                        ╽
+[ES]               ╰  /tmp/err (appending)
+`,
+		},
+		{
 			name:    "file redirection",
 			command: `date > /tmp/out |& grep 'Hello'`,
 			expectedString: `
-[OS]               ╭  *os.File
+[OS]               ╭  /tmp/out
 [SO]               ├╮                       ╿
 [CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
 [SE]               ╰╯                       ╽
 `,
 			check: func(t *testing.T, c *chain) {
-				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
 				assert.Empty(t, c.cmdDescriptors[0].errorStreams)
 			},
 		},
@@ -182,13 +200,12 @@ func TestJoinShellCmd(t *testing.T) {
 			name:    "file redirection (appending)",
 			command: `date >> /tmp/out |& grep 'Hello'`,
 			expectedString: `
-[OS]               ╭  *os.File
+[OS]               ╭  /tmp/out (appending)
 [SO]               ├╮                       ╿
 [CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
 [SE]               ╰╯                       ╽
 `,
 			check: func(t *testing.T, c *chain) {
-				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
 				assert.Empty(t, c.cmdDescriptors[0].errorStreams)
 			},
 		},
@@ -196,59 +213,43 @@ func TestJoinShellCmd(t *testing.T) {
 			name:    "file redirection (error)",
 			command: `date 2> /tmp/out |& grep 'Hello'`,
 			expectedString: `
-[OS]               ╭  *os.File
-[SO]               ├╮                       ╿
+[SO]               ╭╮                       ╿
 [CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
-[SE]               ╰╯                       ╽
+[SE]               ├╯                       ╽
+[ES]               ╰  /tmp/out
 `,
-			check: func(t *testing.T, c *chain) {
-				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
-				assert.Empty(t, c.cmdDescriptors[0].errorStreams)
-			},
 		},
 		{
 			name:    "file redirection (error appending)",
 			command: `date 2>> /tmp/out |& grep 'Hello'`,
 			expectedString: `
-[OS]               ╭  *os.File
-[SO]               ├╮                       ╿
+[SO]               ╭╮                       ╿
 [CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
-[SE]               ╰╯                       ╽
+[SE]               ├╯                       ╽
+[ES]               ╰  /tmp/out (appending)
 `,
-			check: func(t *testing.T, c *chain) {
-				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
-				assert.Empty(t, c.cmdDescriptors[0].errorStreams)
-			},
 		},
 		{
 			name:    "both file redirection",
 			command: `date &> /tmp/out |& grep 'Hello'`,
 			expectedString: `
-[OS]               ╭  *os.File
+[OS]               ╭  /tmp/out
 [SO]               ├╮                       ╿
 [CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
 [SE]               ├╯                       ╽
-[ES]               ╰  *os.File
+[ES]               ╰  /tmp/out
 `,
-			check: func(t *testing.T, c *chain) {
-				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
-				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].errorStreams[0].(*os.File).Name())
-			},
 		},
 		{
 			name:    "both file redirection (appending)",
 			command: `date &>> /tmp/out |& grep 'Hello'`,
 			expectedString: `
-[OS]               ╭  *os.File
+[OS]               ╭  /tmp/out (appending)
 [SO]               ├╮                       ╿
 [CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
 [SE]               ├╯                       ╽
-[ES]               ╰  *os.File
+[ES]               ╰  /tmp/out (appending)
 `,
-			check: func(t *testing.T, c *chain) {
-				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
-				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].errorStreams[0].(*os.File).Name())
-			},
 		},
 	}
 

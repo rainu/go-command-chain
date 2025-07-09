@@ -3,7 +3,9 @@ package cmdchain
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/stretchr/testify/assert"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -744,7 +746,88 @@ func TestHeadWillInterruptPreviousCommand_withCombined(t *testing.T) {
 	assert.Equal(t, "ERR", strings.Trim(output.String(), "\n"))
 }
 
-func runAndCompare(t *testing.T, toTest CommandBuilder, expected string) {
+func TestShellCommand(t *testing.T) {
+	toTest := Builder().JoinShellCmd("echo 'Hello, World!' | wc -l")
+
+	runAndCompare(t, toTest, "1\n")
+}
+
+func TestShellCommand_redirection(t *testing.T) {
+	tmpDir := t.TempDir()
+	err := Builder().
+		JoinShellCmd(fmt.Sprintf("%s -e error -o output > %s/out 2> %s/err", testHelper, tmpDir, tmpDir)).
+		Finalize().Run()
+
+	assert.NoError(t, err)
+
+	outFile, err := os.Open(path.Join(tmpDir, "out"))
+	assert.NoError(t, err)
+
+	content, err := io.ReadAll(outFile)
+	assert.NoError(t, err)
+	assert.Equal(t, "output", strings.TrimSpace(string(content)))
+
+	errFile, err := os.Open(path.Join(tmpDir, "err"))
+	assert.NoError(t, err)
+
+	content, err = io.ReadAll(errFile)
+	assert.NoError(t, err)
+	assert.Equal(t, "error", strings.TrimSpace(string(content)))
+}
+
+func TestShellCommand_redirectionAppending(t *testing.T) {
+	tmpDir := t.TempDir()
+	err := Builder().
+		JoinShellCmd(fmt.Sprintf("%s -e error -o output >> %s/out 2>> %s/err", testHelper, tmpDir, tmpDir)).
+		Finalize().Run()
+
+	assert.NoError(t, err)
+
+	err = Builder().
+		JoinShellCmd(fmt.Sprintf("%s -e error -o output >> %s/out 2>> %s/err", testHelper, tmpDir, tmpDir)).
+		Finalize().Run()
+
+	assert.NoError(t, err)
+
+	outFile, err := os.Open(path.Join(tmpDir, "out"))
+	assert.NoError(t, err)
+
+	content, err := io.ReadAll(outFile)
+	assert.NoError(t, err)
+	assert.Equal(t, "output\noutput", strings.TrimSpace(string(content)))
+
+	errFile, err := os.Open(path.Join(tmpDir, "err"))
+	assert.NoError(t, err)
+
+	content, err = io.ReadAll(errFile)
+	assert.NoError(t, err)
+	assert.Equal(t, "error\nerror", strings.TrimSpace(string(content)))
+}
+
+func TestShellCommand_touchOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	err := Builder().
+		JoinShellCmd(fmt.Sprintf("%s > %s/out 2> %s/err", testHelper, tmpDir, tmpDir)).
+		Finalize().Run()
+
+	assert.NoError(t, err)
+
+	outFile, err := os.Open(path.Join(tmpDir, "out"))
+	assert.NoError(t, err)
+
+	content, err := io.ReadAll(outFile)
+	assert.NoError(t, err)
+	assert.Equal(t, "", strings.TrimSpace(string(content)))
+
+	errFile, err := os.Open(path.Join(tmpDir, "err"))
+	assert.NoError(t, err)
+
+	content, err = io.ReadAll(errFile)
+	assert.NoError(t, err)
+	assert.Equal(t, "", strings.TrimSpace(string(content)))
+}
+
+func runAndCompare(t *testing.T, toTest interface{ Finalize() FinalizedBuilder }, expected string) {
 	output := &bytes.Buffer{}
 
 	err := toTest.Finalize().WithOutput(output).Run()

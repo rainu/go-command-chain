@@ -99,16 +99,6 @@ func (s *shellParser) handleCall(c *syntax.CallExpr, redirs []*syntax.Redirect) 
 func (s *shellParser) handleRedirects(redirs []*syntax.Redirect) (err error) {
 	var outputStreams []io.Writer
 	var errorStreams []io.Writer
-	var files []*os.File
-
-	// in case of any error, we have to ensure that all opened files are closed
-	defer func() {
-		if err != nil {
-			for _, file := range files {
-				file.Close()
-			}
-		}
-	}()
 
 	for _, redir := range redirs {
 		switch redir.Op {
@@ -120,17 +110,23 @@ func (s *shellParser) handleRedirects(redirs []*syntax.Redirect) (err error) {
 			return errorWithPos(redir, fmt.Sprintf("unsupported redirection operator '%s'", redir.Op.String()))
 		}
 
-		var targetFile *os.File
+		var targetFile *lazyFile
 		targetFile, err = s.setupStream(redir)
 		if err != nil {
 			return err
 		}
-		files = append(files, targetFile)
 
-		if redir.Op != syntax.RdrOut && redir.Op != syntax.AppOut {
+		// register file-hook to ensure the file is closed after command execution
+		s.chain.addHook(targetFile)
+
+		if redir.Op == syntax.RdrAll || redir.Op == syntax.AppAll {
 			errorStreams = append(errorStreams, targetFile)
+			outputStreams = append(outputStreams, targetFile)
+		} else if redir.N != nil && redir.N.Value == "2" {
+			errorStreams = append(errorStreams, targetFile)
+		} else {
+			outputStreams = append(outputStreams, targetFile)
 		}
-		outputStreams = append(outputStreams, targetFile)
 	}
 
 	s.chain.WithOutputForks(outputStreams...)
@@ -139,7 +135,7 @@ func (s *shellParser) handleRedirects(redirs []*syntax.Redirect) (err error) {
 	return nil
 }
 
-func (s *shellParser) setupStream(redir *syntax.Redirect) (*os.File, error) {
+func (s *shellParser) setupStream(redir *syntax.Redirect) (*lazyFile, error) {
 	target, err := s.convertWord(redir.Word)
 	if err != nil {
 		return nil, errorWithPos(redir, "error converting output redirection target", err)
@@ -162,15 +158,7 @@ func (s *shellParser) setupStream(redir *syntax.Redirect) (*os.File, error) {
 	default:
 	}
 
-	//TODO: must be closed after command execution; Must be "reopen" if command run again
-	// maybe a "lazy file" would be a good idea:
-	// * only open when first write (this would prevent opening files that are never used)
-	// * close when command execution finished
-	f, err := os.OpenFile(target, flag, 0644)
-	if err != nil {
-		return nil, errorWithPos(redir, fmt.Sprintf("error opening output file '%s'", target), err)
-	}
-	return f, nil
+	return newLazyFile(target, flag, 0644), nil
 }
 
 func (s *shellParser) handleAssigns(assigns []*syntax.Assign) error {

@@ -77,6 +77,9 @@ func (c *chain) Run() error {
 		return c.buildErrors
 	}
 
+	c.executeBeforeRunHooks()
+	defer c.executeAfterRunHooks()
+
 	//we have to start all commands (non blocking!)
 	for cmdIndex, cmdDescriptor := range c.cmdDescriptors {
 		for _, applier := range cmdDescriptor.commandApplier {

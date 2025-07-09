@@ -2,6 +2,7 @@ package cmdchain
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -730,7 +731,7 @@ func (c *chain) toStringModel() stringModel {
 		if len(cmdDesc.inputStreams) > 0 {
 			streamTypes := make([]string, len(cmdDesc.inputStreams), len(cmdDesc.inputStreams))
 			for j, inputStream := range cmdDesc.inputStreams {
-				streamTypes[j] = fmt.Sprintf("%s", reflect.TypeOf(inputStream))
+				streamTypes[j] = streamString(inputStream)
 			}
 			prevChunk.InputStream = strings.Join(streamTypes, ", ")
 		}
@@ -741,7 +742,7 @@ func (c *chain) toStringModel() stringModel {
 		if len(cmdDesc.outputStreams) > 0 {
 			streamTypes := make([]string, len(cmdDesc.outputStreams), len(cmdDesc.outputStreams))
 			for j, outputStream := range cmdDesc.outputStreams {
-				streamTypes[j] = fmt.Sprintf("%s", reflect.TypeOf(outputStream))
+				streamTypes[j] = streamString(outputStream)
 			}
 			nextChunk.OutputStream = strings.Join(streamTypes, ", ")
 
@@ -758,7 +759,7 @@ func (c *chain) toStringModel() stringModel {
 		if len(cmdDesc.errorStreams) > 0 {
 			streamTypes := make([]string, len(cmdDesc.errorStreams), len(cmdDesc.errorStreams))
 			for j, errorStream := range cmdDesc.errorStreams {
-				streamTypes[j] = fmt.Sprintf("%s", reflect.TypeOf(errorStream))
+				streamTypes[j] = streamString(errorStream)
 			}
 			nextChunk.ErrorStream = strings.Join(streamTypes, ", ")
 		}
@@ -774,6 +775,22 @@ func (c *chain) toStringModel() stringModel {
 	}
 
 	return model
+}
+
+func streamString(stream any) (s string) {
+	if stringer, ok := stream.(fmt.Stringer); ok {
+		s = stringer.String()
+	}
+	if len(s) == 0 {
+		if file, ok := stream.(*os.File); ok {
+			s = file.Name()
+		}
+	}
+	if len(s) == 0 {
+		s = fmt.Sprintf("%s", reflect.TypeOf(stream))
+	}
+
+	return
 }
 
 func (s *stringModel) String() string {
