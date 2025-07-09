@@ -84,6 +84,17 @@ func ExampleBuilder_joinWithContext() {
 	}
 }
 
+func ExampleBuilder_joinShellCmd() {
+	//it's the same as in shell: ls -l | grep README
+	err := cmdchain.Builder().
+		JoinShellCmd(`ls -l | grep README`).
+		Finalize().Run()
+
+	if err != nil {
+		panic(err)
+	}
+}
+
 func ExampleBuilder_withInput() {
 	inputContent := strings.NewReader("test\n")
 

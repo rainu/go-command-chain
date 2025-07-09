@@ -29,6 +29,33 @@ type ChainBuilder interface {
 	// on its own.
 	JoinWithContext(ctx context.Context, name string, args ...string) CommandBuilder
 
+	// JoinShellCmd will take a shell command line, parse it into single commands and join them to this chain.
+	// So this is not a single command, which will be interpreted by any shell!
+	// If there is a command, which joined before, their stdout/stderr will redirected to the first
+	// command from the command line in stdin (depending of its configuration).
+	//
+	// Supported features:
+	// 	- Piping (|) between commands
+	// 	- Piping all output (stdout and stderr) to the next command's stdin (|&)
+	// 	- Redirection of stdout (>) and stderr (2>) to files
+	// 	- Redirection of stdout (>>) and stderr (2>>) to files (appending)
+	// 	- Environment variables (e.g. `VAR=value command`)
+	//
+	// Unsupported features:
+	// 	- Background execution (&)
+	// 	- Conditional execution (e.g. `command1 && command2` or `command1 || command2`)
+	//
+	// Example:
+	// 	JoinShellCmd("echo Hello, World! | grep Hello | wc -c")
+	// will create a chain with three commands:
+	//	1. /usr/bin/echo "Hello," "World!"
+	//	2. /usr/bin/grep "Hello"
+	//	3. /usr/bin/wc -c
+	JoinShellCmd(command string) ChainBuilder
+
+	// JoinShellCmdWithContext is like JoinShellCmd but includes the given context to all created commands.
+	JoinShellCmdWithContext(ctx context.Context, command string) ChainBuilder
+
 	// Finalize will finish the command joining process. After calling this method no command can be joined anymore.
 	// Instead final configurations can be made and the chain is ready to run.
 	Finalize() FinalizedBuilder

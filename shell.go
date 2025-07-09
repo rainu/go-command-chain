@@ -1,6 +1,7 @@
 package cmdchain
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"mvdan.cc/sh/v3/syntax"
@@ -8,51 +9,60 @@ import (
 	"strings"
 )
 
-func FromShell(command string, sources ...io.Reader) (FinalizedBuilder, error) {
-	sp, err := newShellParser(command, sources)
-	if err != nil {
-		return nil, err
+func (c *chain) JoinShellCmd(command string) ChainBuilder {
+	c.parseAndJoinShell(nil, command)
+	return c
+}
+
+func (c *chain) JoinShellCmdWithContext(ctx context.Context, command string) ChainBuilder {
+	c.parseAndJoinShell(ctx, command)
+	return c
+}
+
+func (c *chain) parseAndJoinShell(ctx context.Context, command string) {
+	var err error
+	defer func() {
+		if err != nil {
+			c.buildErrors.addError(fmt.Errorf("error parsing shell command: %w", err))
+		}
+	}()
+
+	parser := &shellParser{
+		chain: c,
+		ctx:   ctx,
 	}
-	return sp.Parse()
+
+	parser.program, err = syntax.NewParser().Parse(strings.NewReader(command), "")
+	if err != nil {
+		return
+	}
+
+	err = parser.Parse()
 }
 
 type shellParser struct {
 	program *syntax.File
+	ctx     context.Context
 	chain   *chain
 }
 
-func newShellParser(command string, sources []io.Reader) (*shellParser, error) {
-	result := &shellParser{}
-	if len(sources) == 0 {
-		result.chain = Builder().(*chain)
-	} else {
-		result.chain = Builder().WithInput(sources...).(*chain)
-	}
-
-	var err error
-
-	result.program, err = syntax.NewParser().Parse(strings.NewReader(command), "")
-	if err != nil {
-		return nil, fmt.Errorf("error parsing shell command: %w", err)
-	}
-
-	return result, nil
-}
-
-func (s *shellParser) Parse() (FinalizedBuilder, error) {
+func (s *shellParser) Parse() error {
 	if len(s.program.Stmts) == 0 {
-		return nil, fmt.Errorf("no statements")
+		return fmt.Errorf("no statements")
 	}
 	if len(s.program.Stmts) > 1 {
-		return nil, fmt.Errorf("multiple statements are not supported, found %d statements", len(s.program.Stmts))
+		return fmt.Errorf("multiple statements are not supported, found %d statements", len(s.program.Stmts))
+	}
+	if s.program.Stmts[0].Background {
+		return fmt.Errorf("background execution is not supported")
 	}
 
 	err := s.handleCommand(s.program.Stmts[0].Cmd, s.program.Stmts[0].Redirs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return s.chain.Finalize(), nil
+	return nil
 }
 
 func (s *shellParser) handleCommand(cmd syntax.Command, redirs []*syntax.Redirect) error {
@@ -72,7 +82,11 @@ func (s *shellParser) handleCall(c *syntax.CallExpr, redirs []*syntax.Redirect) 
 		return errorWithPos(c, "error extracting command and arguments", err)
 	}
 
-	s.chain = s.chain.Join(commandName, arguments...).(*chain)
+	if s.ctx == nil {
+		s.chain = s.chain.Join(commandName, arguments...).(*chain)
+	} else {
+		s.chain = s.chain.JoinWithContext(s.ctx, commandName, arguments...).(*chain)
+	}
 
 	err = s.handleAssigns(c.Assigns)
 	if err != nil {

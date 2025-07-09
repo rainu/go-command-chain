@@ -4,11 +4,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestFromShell(t *testing.T) {
+func TestJoinShellCmd(t *testing.T) {
 	tests := []struct {
 		name           string
 		command        string
@@ -159,6 +160,11 @@ func TestFromShell(t *testing.T) {
 			expectError: "[1:1 - 1:13] unsupported binary operator '&&' at '1:6'",
 		},
 		{
+			name:        "background execution",
+			command:     `date &`,
+			expectError: "background execution is not supported",
+		},
+		{
 			name:    "file redirection",
 			command: `date > /tmp/out |& grep 'Hello'`,
 			expectedString: `
@@ -175,6 +181,34 @@ func TestFromShell(t *testing.T) {
 		{
 			name:    "file redirection (appending)",
 			command: `date >> /tmp/out |& grep 'Hello'`,
+			expectedString: `
+[OS]               ╭  *os.File
+[SO]               ├╮                       ╿
+[CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
+[SE]               ╰╯                       ╽
+`,
+			check: func(t *testing.T, c *chain) {
+				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
+				assert.Empty(t, c.cmdDescriptors[0].errorStreams)
+			},
+		},
+		{
+			name:    "file redirection (error)",
+			command: `date 2> /tmp/out |& grep 'Hello'`,
+			expectedString: `
+[OS]               ╭  *os.File
+[SO]               ├╮                       ╿
+[CM] /usr/bin/date ╡╞ /usr/bin/grep "Hello" ╡
+[SE]               ╰╯                       ╽
+`,
+			check: func(t *testing.T, c *chain) {
+				assert.Equal(t, "/tmp/out", c.cmdDescriptors[0].outputStreams[0].(*os.File).Name())
+				assert.Empty(t, c.cmdDescriptors[0].errorStreams)
+			},
+		},
+		{
+			name:    "file redirection (error appending)",
+			command: `date 2>> /tmp/out |& grep 'Hello'`,
 			expectedString: `
 [OS]               ╭  *os.File
 [SO]               ├╮                       ╿
@@ -219,20 +253,50 @@ func TestFromShell(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(t.Name()+"_"+tt.name, func(t *testing.T) {
-			cmd, err := FromShell(tt.command)
+		t.Run(tt.name, func(t *testing.T) {
+			result := Builder().JoinShellCmd(tt.command).(*chain)
+
+			var err error
+			if result.buildErrors.hasError {
+				err = result.buildErrors
+			}
 
 			if tt.expectError == "" {
 				require.NoError(t, err)
-				assert.Equal(t, strings.TrimSpace(tt.expectedString), strings.TrimSpace(cmd.String()))
+				assert.Equal(t, strings.TrimSpace(tt.expectedString), strings.TrimSpace(result.String()))
 
 				if tt.check != nil {
-					tt.check(t, cmd.(*chain))
+					tt.check(t, result)
 				}
 			} else {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectError)
 			}
 		})
+	}
+}
+
+func TestJoinShellCmd_Multiple(t *testing.T) {
+	c := Builder().
+		JoinShellCmd("echo 'Hello, World!' | grep 'Hello'").
+		JoinShellCmd("wc -l | grep '1'")
+
+	expectedString := `
+[SO]                               ╭╮                       ╭╮                  ╭╮                   ╿
+[CM] /usr/bin/echo "Hello, World!" ╡╰ /usr/bin/grep "Hello" ╡╰ /usr/bin/wc "-l" ╡╰ /usr/bin/grep "1" ╡
+[SE]                               ╽                        ╽                   ╽                    ╽
+`
+	assert.Equal(t, strings.TrimSpace(expectedString), strings.TrimSpace(c.Finalize().String()))
+}
+
+func TestJoinShellCmdWithContext(t *testing.T) {
+	result := Builder().JoinShellCmdWithContext(t.Context(), `echo "hello world" | grep "hello" | wc -c`).(*chain)
+
+	assert.False(t, result.buildErrors.hasError)
+	assert.Len(t, result.cmdDescriptors, 3)
+	for _, cmd := range result.cmdDescriptors {
+		ctxValue := reflect.ValueOf(*cmd.command).FieldByName("ctx")
+		assert.False(t, ctxValue.IsNil())
+		assert.True(t, ctxValue.Equal(reflect.ValueOf(t.Context())), "each command should have the same context")
 	}
 }

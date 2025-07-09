@@ -39,6 +39,29 @@ func main() {
 }
 ```
 
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/rainu/go-command-chain"
+)
+
+func main() {
+	stdOut, stdErr, err := cmdchain.Builder().
+		JoinShellCmd(`cat log_file.txt | grep error | wc -l`).
+		Finalize().RunAndGet()
+
+	if err != nil {
+		panic(err)
+	}
+	if stdErr != "" {
+		panic(stdErr)
+	}
+	fmt.Printf("Errors found: %s", stdOut)
+}
+```
+
 For more examples how to use the command chain see [examples](example_test.go).
 
 # Why you should use this library?
