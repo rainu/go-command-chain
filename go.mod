@@ -1,13 +1,13 @@
 module github.com/rainu/go-command-chain
 
-go 1.23
+go 1.23.0
 
-toolchain go1.24.4
+toolchain go1.24.5
 
 require (
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.2
-	mvdan.cc/sh/v3 v3.11.0
+	mvdan.cc/sh/v3 v3.12.0
 )
 
 require (
