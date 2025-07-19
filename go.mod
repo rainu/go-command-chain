@@ -6,6 +6,7 @@ toolchain go1.24.4
 
 require (
 	github.com/stretchr/testify v1.10.0
+	go.uber.org/mock v0.5.2
 	mvdan.cc/sh/v3 v3.11.0
 )
 

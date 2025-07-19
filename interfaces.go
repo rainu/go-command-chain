@@ -51,10 +51,10 @@ type ChainBuilder interface {
 	//	1. /usr/bin/echo "Hello," "World!"
 	//	2. /usr/bin/grep "Hello"
 	//	3. /usr/bin/wc -c
-	JoinShellCmd(command string) ShellCommandBuilder
+	JoinShellCmd(command string) CommandBuilder
 
 	// JoinShellCmdWithContext is like JoinShellCmd but includes the given context to all created commands.
-	JoinShellCmdWithContext(ctx context.Context, command string) ShellCommandBuilder
+	JoinShellCmdWithContext(ctx context.Context, command string) CommandBuilder
 
 	// Finalize will finish the command joining process. After calling this method no command can be joined anymore.
 	// Instead final configurations can be made and the chain is ready to run.
@@ -75,7 +75,10 @@ type FirstCommandBuilder interface {
 // CommandApplier is a function which will get the command's index and the command's reference
 type CommandApplier func(index int, command *exec.Cmd)
 
-type outputBuilder interface {
+// CommandBuilder contains methods for configuring the previous joined command.
+type CommandBuilder interface {
+	ChainBuilder
+
 	// ForwardError will configure the previously joined command to redirect all its stderr output to the next
 	// command's input. If WithErrorForks is also used, the stderr output of the previously joined command will
 	// be redirected to both: stdin of the next command AND the configured fork(s).
@@ -89,10 +92,11 @@ type outputBuilder interface {
 	// also discarded (which is the default case)! So it should be used in combination of ForwardError.
 	DiscardStdOut() CommandBuilder
 
-	// WithOutputForks will configure the previously joined command to redirect their stdout output to the configured
-	// target(s). The configured writer will be written in parallel so streaming is possible. If the previously
-	// joined command is also configured to redirect its stdout to the next command's input, the stdout output will
-	// redirected to both: stdin of the next command AND the configured fork(s).
+	// WithOutputForks will configure the previously joined command (or ALL commands out of the previously joined shell
+	// command) to redirect their stdout output to the configured target(s). The configured writer will be written in
+	// parallel so streaming is possible. If the previously joined command is also configured to redirect its stdout to
+	// the next command's input, the stdout output will redirected to both: stdin of the next command AND the configured
+	// fork(s).
 	// ATTENTION: If one of the given writer will be closed before the command ends the command will be exited. This is
 	// because of the this method uses the io.MultiWriter. And it will close the writer if on of them is closed.
 	WithOutputForks(targets ...io.Writer) CommandBuilder
@@ -101,10 +105,11 @@ type outputBuilder interface {
 	// command and not be overwritten.
 	WithAdditionalOutputForks(targets ...io.Writer) CommandBuilder
 
-	// WithErrorForks will configure the previously joined command to redirect their stderr output to the configured
-	// target(s). The configured writer will be written in parallel so streaming is possible. If the previously
-	// joined command is also configured to redirect its stderr to the next command's input, the stderr output will
-	// redirected to both: stdin of the next command AND the configured fork(s).
+	// WithErrorForks will configure the previously joined command (or ALL commands out of the previously joined shell
+	// command) to redirect their stderr output to the configured target(s). The configured writer will be written in
+	// parallel so streaming is possible. If the previously joined command is also configured to redirect its stderr to
+	// the next command's input, the stderr output will redirected to both: stdin of the next command AND the configured
+	// fork(s).
 	// ATTENTION: If one of the given writer will be closed before the command ends the command will be exited. This is
 	// because of the this method uses the io.MultiWriter. And it will close the writer if on of them is closed.
 	WithErrorForks(targets ...io.Writer) CommandBuilder
@@ -112,47 +117,22 @@ type outputBuilder interface {
 	// WithAdditionalErrorForks is similar to WithErrorForks except that the given targets will be added to the
 	// command and not be overwritten.
 	WithAdditionalErrorForks(targets ...io.Writer) CommandBuilder
-}
 
-// CommandBuilder contains methods for configuring the previous joined command.
-type CommandBuilder interface {
-	ChainBuilder
-	outputBuilder
-
-	// Apply will call the given CommandApplier with the previously joined command. The CommandApplier can do anything
-	// with the previously joined command. The CommandApplier will be called directly so the command which the applier
-	// will be received has included all changes which made before this function call.
-	// ATTENTION: Be aware of the changes the CommandApplier will make. This can clash with the changes the building
-	// pipeline will make!
-	Apply(CommandApplier) CommandBuilder
-
-	// ApplyBeforeStart will call the given CommandApplier with the previously joined command. The CommandApplier can do
-	// anything with the previously joined command. The CommandApplier will be called before the command will be started
-	// so the command is almost finished (all streams are configured and so on).
-	// ATTENTION: Be aware of the changes the CommandApplier will make. This can clash with the changes the building
-	// pipeline will make!
-	ApplyBeforeStart(CommandApplier) CommandBuilder
-
-	// WithInjections will configure the previously joined command to read from the given sources AND the predecessor
-	// command's stdout or stderr (depending on the configuration). This streams (stdout/stderr of predecessor command
-	// and the given sources) will read in parallel (not sequential!). So be aware of concurrency issues.
-	// If this behavior is not wanted, me the io.MultiReader is a better choice.
-	WithInjections(sources ...io.Reader) CommandBuilder
-
-	// WithEmptyEnvironment will use an empty environment for the previously joined command. The default behavior is to
-	// use the current process's environment.
+	// WithEmptyEnvironment will use an empty environment for the previously joined command (or ALL commands out of the
+	// previously joined shell command). The default behavior is to use the current process's environment.
 	WithEmptyEnvironment() CommandBuilder
 
-	// WithEnvironment will configure the previously joined command to use the given environment variables. Key-value
-	// pair(s) must be passed as arguments. Where the first represents the key and the second the value of the
-	// environment variable.
+	// WithEnvironment will configure the previously joined command (or ALL commands out of the previously joined shell
+	// command) to use the given environment variables. Key-value pair(s) must be passed as arguments. Where the first
+	// represents the key and the second the value of the environment variable.
 	WithEnvironment(envMap ...interface{}) CommandBuilder
 
-	// WithEnvironmentMap will configure the previously joined command to use the given environment variables.
+	// WithEnvironmentMap will configure the previously joined command (or ALL commands out of the previously joined
+	// shell command) to use the given environment variables.
 	WithEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder
 
-	// WithEnvironmentPairs will configure the previously joined command to use the given environment variables.
-	// Each entry must have the form "key=value"
+	// WithEnvironmentPairs will configure the previously joined command (or ALL commands out of the previously joined
+	// shell command) to use the given environment variables. Each entry must have the form "key=value"
 	WithEnvironmentPairs(envMap ...string) CommandBuilder
 
 	// WithAdditionalEnvironment will do almost the same thing as WithEnvironment expecting that the given key-value
@@ -167,21 +147,40 @@ type CommandBuilder interface {
 	// values will be joined with the environment variables of the current process.
 	WithAdditionalEnvironmentPairs(envMap ...string) CommandBuilder
 
-	// WithWorkingDirectory will configure the previously joined command to use the specifies the working directory.
-	// Without setting the working directory, the calling process's current directory will be used.
+	// WithWorkingDirectory will configure the previously joined command (or ALL commands out of the previously joined
+	// shell command) to use the specifies the working directory. Without setting the working directory, the calling
+	// process's current directory will be used.
 	WithWorkingDirectory(workingDir string) CommandBuilder
 
-	// WithErrorChecker will configure the previously joined command to use the given error checker. In some cases
-	// the commands will return a non-zero exit code, which will normally cause an error at the FinalizedBuilder.Run().
-	// To avoid that you can use a ErrorChecker to ignore these kind of errors. There exists a set of functions which
-	// create a such ErrorChecker: IgnoreExitCode, IgnoreExitErrors, IgnoreAll, IgnoreNothing
-	WithErrorChecker(ErrorChecker) CommandBuilder
-}
+	// Apply will call the given CommandApplier with the previously joined command (or ALL commands out of the previously
+	// joined shell command). The CommandApplier can do anything with the previously joined command(s). The CommandApplier
+	// will be called directly so the command which the applier will be received has included all changes which made
+	// before this function call.
+	// ATTENTION: Be aware of the changes the CommandApplier will make. This can clash with the changes the building
+	// pipeline will make!
+	Apply(CommandApplier) CommandBuilder
 
-// ShellCommandBuilder contains methods for configuring the previous joined shell command.
-type ShellCommandBuilder interface {
-	ChainBuilder
-	outputBuilder
+	// ApplyBeforeStart will call the given CommandApplier with the previously joined command (or ALL commands out of the
+	// previously joined shell command). The CommandApplier can do anything with the previously joined command. The
+	// CommandApplier will be called before the command(s) will be started so the command(s) is almost finished (all
+	// streams are configured and so on).
+	// ATTENTION: Be aware of the changes the CommandApplier will make. This can clash with the changes the building
+	// pipeline will make!
+	ApplyBeforeStart(CommandApplier) CommandBuilder
+
+	// WithInjections will configure the previously joined command (or ALL commands out of the previously joined shell
+	// command) to read from the given sources AND the predecessor command's stdout or stderr (depending on the
+	// configuration). This streams (stdout/stderr of predecessor command and the given sources) will read in parallel
+	// (not sequential!). So be aware of concurrency issues. If this behavior is not wanted, maybe the io.MultiReader
+	// is a better choice.
+	WithInjections(sources ...io.Reader) CommandBuilder
+
+	// WithErrorChecker will configure the previously joined command (or ALL commands out of the previously joined shell
+	// command) to use the given error checker. In some cases the command(s) will return a non-zero exit code, which will
+	// normally cause an error at the FinalizedBuilder.Run(). To avoid that you can use a ErrorChecker to ignore these
+	// kind of errors. There exists a set of functions which create a such ErrorChecker: IgnoreExitCode, IgnoreExitErrors,
+	// IgnoreAll, IgnoreNothing
+	WithErrorChecker(ErrorChecker) CommandBuilder
 }
 
 // FinalizedBuilder contains methods for configuration the the finalized chain. At this step the chain can be running.

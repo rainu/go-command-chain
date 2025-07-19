@@ -5,253 +5,211 @@ import (
 	"fmt"
 	"io"
 	"mvdan.cc/sh/v3/syntax"
-	"os"
+	"os/exec"
 	"strings"
 )
 
-func (c *chain) JoinShellCmd(command string) ShellCommandBuilder {
-	c.parseAndJoinShell(nil, command)
-	return c
+func (c *chain) JoinShellCmd(command string) CommandBuilder {
+	return &shellChain{
+		command: command,
+		chain:   c,
+	}
 }
 
-func (c *chain) JoinShellCmdWithContext(ctx context.Context, command string) ShellCommandBuilder {
-	c.parseAndJoinShell(ctx, command)
-	return c
+func (c *chain) JoinShellCmdWithContext(ctx context.Context, command string) CommandBuilder {
+	return &shellChain{
+		ctx:     ctx,
+		command: command,
+		chain:   c,
+	}
 }
 
-func (c *chain) parseAndJoinShell(ctx context.Context, command string) {
+type shellChain struct {
+	ctx     context.Context
+	command string
+
+	actions []func(CommandBuilder)
+	chain   *chain
+}
+
+var buildShellChain = func(s *shellChain) CommandBuilder {
 	var err error
 	defer func() {
 		if err != nil {
-			c.buildErrors.addError(fmt.Errorf("error parsing shell command: %w", err))
+			s.chain.buildErrors.addError(fmt.Errorf("error parsing shell command: %w", err))
 		}
 	}()
 
 	parser := &shellParser{
-		chain: c,
-		ctx:   ctx,
+		chain:   s.chain,
+		ctx:     s.ctx,
+		actions: s.actions,
 	}
 
-	parser.program, err = syntax.NewParser().Parse(strings.NewReader(command), "")
+	parser.program, err = syntax.NewParser().Parse(strings.NewReader(s.command), "")
 	if err != nil {
-		return
+		return s.chain
 	}
 
 	err = parser.Parse()
+
+	return s.chain
 }
 
-type shellParser struct {
-	program *syntax.File
-	ctx     context.Context
-	chain   *chain
+////
+// Before joining the next command, here we build the current shell-command and apply all collected actions.
+////
+
+func (s *shellChain) Join(name string, args ...string) CommandBuilder {
+	return buildShellChain(s).Join(name, args...)
 }
 
-func (s *shellParser) Parse() error {
-	if len(s.program.Stmts) == 0 {
-		return fmt.Errorf("no statements")
-	}
-	if len(s.program.Stmts) > 1 {
-		return fmt.Errorf("multiple statements are not supported, found %d statements", len(s.program.Stmts))
-	}
-	if s.program.Stmts[0].Background {
-		return fmt.Errorf("background execution is not supported")
-	}
-
-	err := s.handleCommand(s.program.Stmts[0].Cmd, s.program.Stmts[0].Redirs)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (s *shellChain) JoinCmd(cmd *exec.Cmd) CommandBuilder {
+	return buildShellChain(s).JoinCmd(cmd)
 }
 
-func (s *shellParser) handleCommand(cmd syntax.Command, redirs []*syntax.Redirect) error {
-	switch c := cmd.(type) {
-	case *syntax.CallExpr:
-		return s.handleCall(c, redirs)
-	case *syntax.BinaryCmd:
-		return s.handleBinary(c)
-	default:
-		return errorWithPos(c, "unsupported command")
-	}
+func (s *shellChain) JoinWithContext(ctx context.Context, name string, args ...string) CommandBuilder {
+	return buildShellChain(s).JoinWithContext(ctx, name, args...)
 }
 
-func (s *shellParser) handleCall(c *syntax.CallExpr, redirs []*syntax.Redirect) error {
-	commandName, arguments, err := s.extractCommandAndArgs(c.Args)
-	if err != nil {
-		return errorWithPos(c, "error extracting command and arguments", err)
-	}
-
-	if s.ctx == nil {
-		s.chain = s.chain.Join(commandName, arguments...).(*chain)
-	} else {
-		s.chain = s.chain.JoinWithContext(s.ctx, commandName, arguments...).(*chain)
-	}
-
-	err = s.handleAssigns(c.Assigns)
-	if err != nil {
-		return err
-	}
-
-	return s.handleRedirects(redirs)
+func (s *shellChain) JoinShellCmd(command string) CommandBuilder {
+	return buildShellChain(s).JoinShellCmd(command)
 }
 
-func (s *shellParser) handleRedirects(redirs []*syntax.Redirect) (err error) {
-	var outputStreams []io.Writer
-	var errorStreams []io.Writer
-
-	for _, redir := range redirs {
-		switch redir.Op {
-		case syntax.RdrAll: // &>
-		case syntax.AppAll: // &>>
-		case syntax.RdrOut: // >
-		case syntax.AppOut: // >>
-		default:
-			return errorWithPos(redir, fmt.Sprintf("unsupported redirection operator '%s'", redir.Op.String()))
-		}
-
-		var targetFile *lazyFile
-		targetFile, err = s.setupStream(redir)
-		if err != nil {
-			return err
-		}
-
-		// register file-hook to ensure the file is closed after command execution
-		s.chain.addHook(targetFile)
-
-		if redir.Op == syntax.RdrAll || redir.Op == syntax.AppAll {
-			errorStreams = append(errorStreams, targetFile)
-			outputStreams = append(outputStreams, targetFile)
-		} else if redir.N != nil && redir.N.Value == "2" {
-			errorStreams = append(errorStreams, targetFile)
-		} else {
-			outputStreams = append(outputStreams, targetFile)
-		}
-	}
-
-	s.chain.WithOutputForks(outputStreams...)
-	s.chain.WithErrorForks(errorStreams...)
-
-	return nil
+func (s *shellChain) JoinShellCmdWithContext(ctx context.Context, command string) CommandBuilder {
+	return buildShellChain(s).JoinShellCmdWithContext(ctx, command)
 }
 
-func (s *shellParser) setupStream(redir *syntax.Redirect) (*lazyFile, error) {
-	target, err := s.convertWord(redir.Word)
-	if err != nil {
-		return nil, errorWithPos(redir, "error converting output redirection target", err)
-	}
-	if target == "" {
-		return nil, errorWithPos(redir, "missing output redirection target")
-	}
-
-	flag := os.O_WRONLY | os.O_CREATE
-
-	switch redir.Op {
-	case syntax.RdrAll:
-		fallthrough
-	case syntax.RdrOut:
-		flag |= os.O_TRUNC
-	case syntax.AppAll:
-		fallthrough
-	case syntax.AppOut:
-		flag |= os.O_APPEND
-	default:
-	}
-
-	return newLazyFile(target, flag, 0644), nil
+func (s *shellChain) Finalize() FinalizedBuilder {
+	return buildShellChain(s).Finalize()
 }
 
-func (s *shellParser) handleAssigns(assigns []*syntax.Assign) error {
-	var env []string
+////
+// Here we have to "collect" the actions which must be applied BEFORE the next command is joined.
+////
 
-	for _, assign := range assigns {
-		if assign.Value == nil && assign.Array == nil && assign.Index == nil {
-			// This is a simple assignment without value, e.g., `VAR=`
-			env = append(env, fmt.Sprintf("%s=", assign.Name.Value))
-		} else if assign.Value != nil {
-			value, err := s.convertWord(assign.Value)
-			if err != nil {
-				return errorWithPos(assign, "error converting assignment value", err)
-			}
-			env = append(env, fmt.Sprintf("%s=%s", assign.Name.Value, value))
-		} else {
-			return errorWithPos(assign, "unsupported assignment")
-		}
-	}
-
-	s.chain.WithAdditionalEnvironmentPairs(env...)
-	return nil
+func (s *shellChain) Apply(applier CommandApplier) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.Apply(applier)
+	})
+	return s
 }
 
-func (s *shellParser) handleBinary(b *syntax.BinaryCmd) error {
-	if err := s.handleCommand(b.X.Cmd, b.X.Redirs); err != nil {
-		return err
-	}
-
-	switch b.Op {
-	case syntax.Pipe: // |
-	case syntax.PipeAll: // |&
-		s.chain = s.chain.ForwardError().(*chain)
-	default:
-		return errorWithPos(b, fmt.Sprintf("unsupported binary operator '%s' at '%s'", b.Op.String(), b.OpPos.String()))
-	}
-
-	return s.handleCommand(b.Y.Cmd, b.Y.Redirs)
+func (s *shellChain) ApplyBeforeStart(applier CommandApplier) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.ApplyBeforeStart(applier)
+	})
+	return s
 }
 
-func (s *shellParser) extractCommandAndArgs(words []*syntax.Word) (commandName string, arguments []string, err error) {
-	for i := range words {
-		if i == 0 {
-			commandName, err = s.convertWord(words[i])
-			if err != nil {
-				return
-			}
-		} else {
-			var argument string
-			argument, err = s.convertWord(words[i])
-			if err != nil {
-				return
-			}
-
-			arguments = append(arguments, argument)
-		}
-	}
-
-	return
+func (s *shellChain) ForwardError() CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.ForwardError()
+	})
+	return s
 }
 
-func (s *shellParser) convertWord(word *syntax.Word) (string, error) {
-	if word == nil {
-		return "", nil
-	}
-
-	result := word.Lit()
-	if result != "" {
-		return result, nil
-	}
-
-	return s.convertWordParts(word.Parts)
+func (s *shellChain) DiscardStdOut() CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.DiscardStdOut()
+	})
+	return s
 }
 
-func (s *shellParser) convertWordParts(parts []syntax.WordPart) (result string, err error) {
-	for i := range parts {
-		switch part := parts[i].(type) {
-		case *syntax.Lit:
-			result += part.Value
-		case *syntax.SglQuoted:
-			result += part.Value
-		case *syntax.DblQuoted:
-			var r string
-			r, err = s.convertWordParts(part.Parts)
-			if err != nil {
-				return
-			}
+func (s *shellChain) WithOutputForks(targets ...io.Writer) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithOutputForks(targets...)
+	})
+	return s
+}
 
-			result += r
-		default:
-			err = errorWithPos(part, "unsupported word")
-			return
-		}
-	}
-	return
+func (s *shellChain) WithAdditionalOutputForks(targets ...io.Writer) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithAdditionalOutputForks(targets...)
+	})
+	return s
+}
+
+func (s *shellChain) WithErrorForks(targets ...io.Writer) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithErrorForks(targets...)
+	})
+	return s
+}
+
+func (s *shellChain) WithAdditionalErrorForks(targets ...io.Writer) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithAdditionalErrorForks(targets...)
+	})
+	return s
+}
+
+func (s *shellChain) WithInjections(sources ...io.Reader) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithInjections(sources...)
+	})
+	return s
+}
+
+func (s *shellChain) WithEmptyEnvironment() CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithEmptyEnvironment()
+	})
+	return s
+}
+
+func (s *shellChain) WithEnvironment(envMap ...interface{}) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithEnvironment(envMap...)
+	})
+	return s
+}
+
+func (s *shellChain) WithEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithEnvironmentMap(envMap)
+	})
+	return s
+}
+
+func (s *shellChain) WithEnvironmentPairs(envMap ...string) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithEnvironmentPairs(envMap...)
+	})
+	return s
+}
+
+func (s *shellChain) WithAdditionalEnvironment(envMap ...interface{}) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithAdditionalEnvironment(envMap...)
+	})
+	return s
+}
+
+func (s *shellChain) WithAdditionalEnvironmentMap(envMap map[interface{}]interface{}) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithAdditionalEnvironmentMap(envMap)
+	})
+	return s
+}
+
+func (s *shellChain) WithAdditionalEnvironmentPairs(envMap ...string) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithAdditionalEnvironmentPairs(envMap...)
+	})
+	return s
+}
+
+func (s *shellChain) WithWorkingDirectory(workingDir string) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithWorkingDirectory(workingDir)
+	})
+	return s
+}
+
+func (s *shellChain) WithErrorChecker(checker ErrorChecker) CommandBuilder {
+	s.actions = append(s.actions, func(c CommandBuilder) {
+		c.WithErrorChecker(checker)
+	})
+	return s
 }

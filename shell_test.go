@@ -1,8 +1,11 @@
 package cmdchain
 
 import (
+	"bytes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
@@ -255,7 +258,7 @@ func TestJoinShellCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := Builder().JoinShellCmd(tt.command).(*chain)
+			result := buildShellChain(Builder().JoinShellCmd(tt.command).(*shellChain)).(*chain)
 
 			var err error
 			if result.buildErrors.hasError {
@@ -291,7 +294,7 @@ func TestJoinShellCmd_Multiple(t *testing.T) {
 }
 
 func TestJoinShellCmdWithContext(t *testing.T) {
-	result := Builder().JoinShellCmdWithContext(t.Context(), `echo "hello world" | grep "hello" | wc -c`).(*chain)
+	result := buildShellChain(Builder().JoinShellCmdWithContext(t.Context(), `echo "hello world" | grep "hello" | wc -c`).(*shellChain)).(*chain)
 
 	assert.False(t, result.buildErrors.hasError)
 	assert.Len(t, result.cmdDescriptors, 3)
@@ -300,4 +303,285 @@ func TestJoinShellCmdWithContext(t *testing.T) {
 		assert.False(t, ctxValue.IsNil())
 		assert.True(t, ctxValue.Equal(reflect.ValueOf(t.Context())), "each command should have the same context")
 	}
+}
+
+func TestJoinShellCmdAndWithAdditionalForks(t *testing.T) {
+	output := bytes.NewBuffer(nil)
+	finalized := Builder().
+		JoinShellCmd(`echo "hello world" | grep "hello" | wc -c`).
+		WithOutputForks(output).
+		Finalize()
+
+	expectedString := `
+[OS]                             ╭  *bytes.Buffer         ╭  *bytes.Buffer    ╭ *bytes.Buffer
+[SO]                             ├╮                       ├╮                  │
+[CM] /usr/bin/echo "hello world" ╡╰ /usr/bin/grep "hello" ╡╰ /usr/bin/wc "-c" ╡
+[SE]                             ╽                        ╽                   ╽
+`
+	assert.Equal(t, strings.TrimSpace(expectedString), strings.TrimSpace(finalized.String()))
+
+	sOut, sErr, err := finalized.RunAndGet()
+	assert.NoError(t, err)
+	assert.Equal(t, "12", strings.TrimSpace(sOut))
+	assert.Equal(t, "", strings.TrimSpace(sErr))
+}
+
+func TestJoinShellCmdAndCommandApplier(t *testing.T) {
+	var applied []int
+	Builder().
+		Join("echo", "hello world").
+		JoinShellCmd(`grep "hello" | wc -c`).
+		Apply(func(index int, command *exec.Cmd) {
+			applied = append(applied, index)
+		}).
+		Finalize()
+
+	assert.Equal(t, []int{1, 2}, applied)
+}
+
+func TestShellActionCollection(t *testing.T) {
+	testCases := []struct {
+		name   string
+		mock   func(*MockCommandBuilder)
+		action func(*shellChain)
+	}{
+		{"Apply",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().Apply(gomock.Any())
+			},
+			func(s *shellChain) {
+				s.Apply(func(int, *exec.Cmd) {})
+			},
+		},
+		{"ApplyBeforeStart",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().ApplyBeforeStart(gomock.Any())
+			},
+			func(s *shellChain) {
+				s.ApplyBeforeStart(func(int, *exec.Cmd) {})
+			},
+		},
+		{"ForwardError",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().ForwardError()
+			},
+			func(s *shellChain) {
+				s.ForwardError()
+			},
+		},
+		{"DiscardStdOut",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().DiscardStdOut()
+			},
+			func(s *shellChain) {
+				s.DiscardStdOut()
+			},
+		},
+		{"WithOutputForks",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithOutputForks()
+			},
+			func(s *shellChain) {
+				s.WithOutputForks()
+			},
+		},
+		{"WithAdditionalOutputForks",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithAdditionalOutputForks()
+			},
+			func(s *shellChain) {
+				s.WithAdditionalOutputForks()
+			},
+		},
+		{"WithErrorForks",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithErrorForks()
+			},
+			func(s *shellChain) {
+				s.WithErrorForks()
+			},
+		},
+		{"WithAdditionalErrorForks",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithAdditionalErrorForks()
+			},
+			func(s *shellChain) {
+				s.WithAdditionalErrorForks()
+			},
+		},
+		{"WithInjections",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithInjections()
+			},
+			func(s *shellChain) {
+				s.WithInjections()
+			},
+		},
+		{"WithEmptyEnvironment",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithEmptyEnvironment()
+			},
+			func(s *shellChain) {
+				s.WithEmptyEnvironment()
+			},
+		},
+		{"WithEnvironment",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithEnvironment()
+			},
+			func(s *shellChain) {
+				s.WithEnvironment()
+			},
+		},
+		{"WithEnvironmentMap",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithEnvironmentMap(gomock.Any())
+			},
+			func(s *shellChain) {
+				s.WithEnvironmentMap(map[interface{}]interface{}{})
+			},
+		},
+		{"WithEnvironmentPairs",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithEnvironmentPairs()
+			},
+			func(s *shellChain) {
+				s.WithEnvironmentPairs()
+			},
+		},
+		{"WithAdditionalEnvironment",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithAdditionalEnvironment()
+			},
+			func(s *shellChain) {
+				s.WithAdditionalEnvironment()
+			},
+		},
+		{"WithAdditionalEnvironmentMap",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithAdditionalEnvironmentMap(gomock.Any())
+			},
+			func(s *shellChain) {
+				s.WithAdditionalEnvironmentMap(map[interface{}]interface{}{})
+			},
+		},
+		{"WithAdditionalEnvironmentPairs",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithAdditionalEnvironmentPairs()
+			},
+			func(s *shellChain) {
+				s.WithAdditionalEnvironmentPairs()
+			},
+		},
+		{"WithWorkingDirectory",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithWorkingDirectory(gomock.Any())
+			},
+			func(s *shellChain) {
+				s.WithWorkingDirectory("")
+			},
+		},
+		{"WithErrorChecker",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().WithErrorChecker(gomock.Any())
+			},
+			func(s *shellChain) {
+				s.WithErrorChecker(nil)
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mChain := NewMockCommandBuilder(ctrl)
+			tt.mock(mChain)
+
+			toTest := &shellChain{}
+			tt.action(toTest)
+
+			for _, action := range toTest.actions {
+				action(mChain)
+			}
+		})
+	}
+}
+
+func TestShellBuildBeforeNext(t *testing.T) {
+	testCases := []struct {
+		name   string
+		mock   func(*MockCommandBuilder)
+		action func(*shellChain)
+	}{
+		{"Join",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().Join("echo")
+			},
+			func(s *shellChain) {
+				s.Join("echo")
+			},
+		},
+		{"JoinCmd",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().JoinCmd(nil)
+			},
+			func(s *shellChain) {
+				s.JoinCmd(nil)
+			},
+		},
+		{"JoinWithContext",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().JoinWithContext(t.Context(), "echo")
+			},
+			func(s *shellChain) {
+				s.JoinWithContext(t.Context(), "echo")
+			},
+		},
+		{"JoinShellCmd",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().JoinShellCmd("echo")
+			},
+			func(s *shellChain) {
+				s.JoinShellCmd("echo")
+			},
+		},
+		{"JoinShellCmdWithContext",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().JoinShellCmdWithContext(t.Context(), "echo")
+			},
+			func(s *shellChain) {
+				s.JoinShellCmdWithContext(t.Context(), "echo")
+			},
+		},
+		{"Finalize",
+			func(builder *MockCommandBuilder) {
+				builder.EXPECT().Finalize()
+			},
+			func(s *shellChain) {
+				s.Finalize()
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			of := buildShellChain
+			defer func() { buildShellChain = of }()
+
+			mChain := NewMockCommandBuilder(ctrl)
+			buildShellChain = func(s *shellChain) CommandBuilder {
+				return mChain
+			}
+
+			tt.mock(mChain)
+			toTest := &shellChain{}
+			tt.action(toTest)
+		})
+	}
+
 }
